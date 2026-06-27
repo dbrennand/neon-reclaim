@@ -1,0 +1,51 @@
+{
+  "name": "neon-reclaim",
+  "version": "1.0.0",
+  "description": "Neon Reclaim, a browser-based sci-fi dungeon crawler.",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/dbrennand/neon-reclaim.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dbrennand/neon-reclaim/issues"
+  },
+  "homepage": "https://github.com/dbrennand/neon-reclaim#readme",
+  "keywords": [
+    "browser-game",
+    "dungeon-crawler",
+    "phaser",
+    "typescript",
+    "vite"
+  ],
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc && vite build",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.6.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.7.0",
+    "prettier": "^3.9.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.62.0",
+    "vite": "^6.3.5",
+    "vitest": "^3.2.4"
+  }
+}
