@@ -409,7 +409,7 @@ export class GameScene extends Phaser.Scene {
       bullet.setRotation(angle);
       this.playerBullets.add(bullet);
     }
-    this.playShotSound();
+    this.playShotSound(weapon.id);
   }
 
   private getAimPoint(): Phaser.Math.Vector2 {
@@ -1096,8 +1096,31 @@ export class GameScene extends Phaser.Scene {
     oscillator.stop(now + duration + 0.02);
   }
 
-  private playShotSound(): void {
-    this.playTone(620, 0.07, "square", 0.08, 360);
+  private playShotSound(weaponId: string): void {
+    switch (weaponId) {
+      case "rail-rifle":
+        this.playTone(1480, 0.055, "sawtooth", 0.095, 220);
+        this.playTone(2480, 0.035, "square", 0.04, 1240);
+        this.time.delayedCall(22, () => this.playTone(110, 0.075, "triangle", 0.035, 70));
+        break;
+      case "scatter-coil":
+        this.playTone(420, 0.09, "triangle", 0.085, 170);
+        this.playTone(230, 0.12, "sawtooth", 0.045, 90);
+        [16, 28, 42, 56].forEach((delay, index) => {
+          this.time.delayedCall(delay, () => this.playTone(560 - index * 70, 0.045, "square", 0.035, 150));
+        });
+        break;
+      case "arc-lancer":
+        this.playTone(180, 0.18, "sawtooth", 0.085, 540);
+        this.playTone(92, 0.2, "triangle", 0.06, 46);
+        this.time.delayedCall(34, () => this.playTone(1320, 0.12, "sine", 0.045, 660));
+        break;
+      case "pulse-pistol":
+      default:
+        this.playTone(620, 0.07, "square", 0.08, 360);
+        this.playTone(1240, 0.035, "sine", 0.035, 840);
+        break;
+    }
   }
 
   private playEnemyHitSound(): void {
