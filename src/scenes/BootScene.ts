@@ -11,7 +11,7 @@ export class BootScene extends Phaser.Scene {
     this.createSharedTextures();
     enemies.forEach((enemy) => this.createRobotTexture(`enemy-${enemy.id}`, enemy.color, enemy.accent, enemy.radius));
     bosses.forEach((boss) => this.createBossTexture(`boss-${boss.id}`, boss.color, boss.accent));
-    weapons.forEach((weapon) => this.createProjectileTexture(`projectile-${weapon.id}`, weapon.color));
+    weapons.forEach((weapon) => this.createProjectileTexture(`projectile-${weapon.id}`, weapon.id, weapon.color));
     this.scene.start("MainMenuScene");
   }
 
@@ -106,17 +106,66 @@ export class BootScene extends Phaser.Scene {
     graphics.destroy();
   }
 
-  private createProjectileTexture(key: string, color: number): void {
+  private createProjectileTexture(key: string, weaponId: string, color: number): void {
     const graphics = this.make.graphics({ x: 0, y: 0 });
-    graphics.fillStyle(color, 0.28);
-    graphics.fillRoundedRect(0, 6, 34, 8, 4);
-    graphics.fillStyle(color, 1);
-    graphics.fillRoundedRect(7, 8, 25, 4, 2);
-    graphics.fillStyle(0xffffff, 0.9);
-    graphics.fillRoundedRect(18, 9, 13, 2, 1);
-    graphics.fillStyle(color, 0.85);
-    graphics.fillTriangle(34, 10, 24, 2, 24, 18);
-    graphics.generateTexture(key, 38, 20);
+
+    switch (weaponId) {
+      case "rail-rifle":
+        graphics.fillStyle(color, 0.22);
+        graphics.fillRoundedRect(0, 4, 58, 8, 4);
+        graphics.fillStyle(color, 1);
+        graphics.fillRoundedRect(6, 6, 47, 4, 2);
+        graphics.fillStyle(0xffffff, 0.95);
+        graphics.fillRoundedRect(19, 7, 32, 2, 1);
+        graphics.fillStyle(color, 0.72);
+        graphics.fillTriangle(57, 8, 45, 0, 45, 16);
+        graphics.fillTriangle(12, 8, 2, 2, 2, 14);
+        graphics.generateTexture(key, 60, 16);
+        break;
+      case "scatter-coil":
+        graphics.fillStyle(color, 0.26);
+        graphics.fillCircle(11, 11, 10);
+        graphics.fillStyle(color, 0.95);
+        graphics.fillCircle(11, 11, 5);
+        graphics.lineStyle(2, 0xffffff, 0.8);
+        graphics.strokeCircle(11, 11, 8);
+        graphics.lineStyle(2, color, 0.75);
+        graphics.lineBetween(3, 11, 19, 11);
+        graphics.lineBetween(11, 3, 11, 19);
+        graphics.generateTexture(key, 22, 22);
+        break;
+      case "arc-lancer":
+        graphics.lineStyle(7, color, 0.26);
+        graphics.lineBetween(1, 12, 14, 6);
+        graphics.lineBetween(14, 6, 24, 15);
+        graphics.lineBetween(24, 15, 36, 5);
+        graphics.lineBetween(36, 5, 50, 12);
+        graphics.lineStyle(3, color, 1);
+        graphics.lineBetween(2, 12, 15, 7);
+        graphics.lineBetween(15, 7, 24, 15);
+        graphics.lineBetween(24, 15, 36, 6);
+        graphics.lineBetween(36, 6, 49, 12);
+        graphics.fillStyle(0xffffff, 0.9);
+        graphics.fillCircle(15, 7, 2);
+        graphics.fillCircle(36, 6, 2);
+        graphics.fillStyle(color, 0.78);
+        graphics.fillTriangle(51, 12, 42, 5, 42, 19);
+        graphics.generateTexture(key, 54, 24);
+        break;
+      case "pulse-pistol":
+      default:
+        graphics.fillStyle(color, 0.28);
+        graphics.fillRoundedRect(0, 6, 34, 8, 4);
+        graphics.fillStyle(color, 1);
+        graphics.fillRoundedRect(7, 8, 25, 4, 2);
+        graphics.fillStyle(0xffffff, 0.9);
+        graphics.fillRoundedRect(18, 9, 13, 2, 1);
+        graphics.fillStyle(color, 0.85);
+        graphics.fillTriangle(34, 10, 24, 2, 24, 18);
+        graphics.generateTexture(key, 38, 20);
+        break;
+    }
+
     graphics.destroy();
   }
 

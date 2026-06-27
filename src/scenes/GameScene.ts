@@ -404,7 +404,8 @@ export class GameScene extends Phaser.Scene {
       bullet.setData("born", time);
       bullet.setData("velocityX", Math.cos(angle) * weapon.projectileSpeed);
       bullet.setData("velocityY", Math.sin(angle) * weapon.projectileSpeed);
-      bullet.body?.setSize(28, 8);
+      const bodySize = this.projectileBodySize(weapon.id);
+      bullet.body?.setSize(bodySize.width, bodySize.height);
       bullet.setVelocity(bullet.getData("velocityX") as number, bullet.getData("velocityY") as number);
       bullet.setRotation(angle);
       this.playerBullets.add(bullet);
@@ -420,6 +421,20 @@ export class GameScene extends Phaser.Scene {
     }
     const fallback = point as { x: number; y: number };
     return new Phaser.Math.Vector2(fallback.x, fallback.y);
+  }
+
+  private projectileBodySize(weaponId: string): { width: number; height: number } {
+    switch (weaponId) {
+      case "rail-rifle":
+        return { width: 46, height: 6 };
+      case "scatter-coil":
+        return { width: 14, height: 14 };
+      case "arc-lancer":
+        return { width: 42, height: 14 };
+      case "pulse-pistol":
+      default:
+        return { width: 28, height: 8 };
+    }
   }
 
   private updateEnemies(time: number): void {
