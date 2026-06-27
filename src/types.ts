@@ -123,4 +123,8 @@ export interface RunState {
   graph: RoomGraph;
   currentRoomId: string;
   purchasedItemIds: string[];
+  roomsCleared: number;
+  enemiesDefeated: number;
+  bossesDefeated: number;
+  chipsCollected: number;
 }

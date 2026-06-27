@@ -1,9 +1,14 @@
 import Phaser from "phaser";
 
 interface EndPayload {
+  chipsCarried: number;
   chipsCollected: number;
   chipsRetained: number;
   dungeonReached: number;
+  roomsCleared: number;
+  enemiesDefeated: number;
+  bossesDefeated: number;
+  weaponName: string;
 }
 
 export class DeathScene extends Phaser.Scene {
@@ -23,9 +28,25 @@ export class DeathScene extends Phaser.Scene {
       color: "#e8f6ff"
     });
     this.add.text(158, 246, `Microchips collected: ${payload.chipsCollected}`, { fontSize: "24px", color: "#e8f6ff" });
-    this.add.text(158, 286, `Retained for upgrades: ${payload.chipsRetained}`, { fontSize: "24px", color: "#63f7b4" });
-    this.button(158, 376, "Try Again", () => this.scene.start("MainMenuScene"));
-    this.button(158, 438, "Permanent Upgrades", () => this.scene.start("UpgradeScene"));
+    this.add.text(158, 286, `Microchips carried: ${payload.chipsCarried}`, { fontSize: "24px", color: "#e8f6ff" });
+    this.add.text(158, 326, `Retained for upgrades: ${payload.chipsRetained}`, { fontSize: "24px", color: "#63f7b4" });
+    this.add.text(
+      540,
+      206,
+      [
+        `Rooms cleared: ${payload.roomsCleared}`,
+        `Enemies defeated: ${payload.enemiesDefeated}`,
+        `Bosses defeated: ${payload.bossesDefeated}`,
+        `Weapon: ${payload.weaponName}`
+      ],
+      {
+        fontSize: "22px",
+        lineSpacing: 14,
+        color: "#cfe8f5"
+      }
+    );
+    this.button(158, 416, "Try Again", () => this.scene.start("MainMenuScene"));
+    this.button(158, 478, "Permanent Upgrades", () => this.scene.start("UpgradeScene"));
   }
 
   private button(x: number, y: number, label: string, onClick: () => void): void {

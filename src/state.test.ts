@@ -24,6 +24,10 @@ describe("run state transitions", () => {
     expect(run.weaponId).toBe("pulse-pistol");
     expect(run.currentRoomId).toBe("0,0");
     expect(run.graph.seed).toBe(run.seed);
+    expect(run.roomsCleared).toBe(0);
+    expect(run.enemiesDefeated).toBe(0);
+    expect(run.bossesDefeated).toBe(0);
+    expect(run.chipsCollected).toBe(0);
   });
 
   it("advances through dungeons and ends at the final district boundary", () => {

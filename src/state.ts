@@ -28,7 +28,11 @@ export function startNewRun(save: SaveState): RunState {
     seed,
     graph: generateDungeon(seed, 0),
     currentRoomId: "0,0",
-    purchasedItemIds: []
+    purchasedItemIds: [],
+    roomsCleared: 0,
+    enemiesDefeated: 0,
+    bossesDefeated: 0,
+    chipsCollected: 0
   };
   save.totalRuns += 1;
   currentSave = save;

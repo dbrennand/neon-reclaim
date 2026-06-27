@@ -1,5 +1,6 @@
 import Phaser from "phaser";
-import { loadSave, resetSave, saveGame } from "../save";
+import { dungeons } from "../data";
+import { loadSave, saveGame } from "../save";
 import { setCurrentSave, startNewRun } from "../state";
 
 export class MainMenuScene extends Phaser.Scene {
@@ -27,7 +28,8 @@ export class MainMenuScene extends Phaser.Scene {
       fontSize: "22px",
       color: "#63f7b4"
     });
-    this.add.text(96, 252, `Runs: ${save.totalRuns}    Best district: ${save.bestDungeonReached + 1}/3`, {
+    const bestDistrict = Math.min(save.bestDungeonReached + 1, dungeons.length);
+    this.add.text(96, 252, `Runs: ${save.totalRuns}    Best district: ${bestDistrict}/${dungeons.length}`, {
       fontSize: "18px",
       color: "#cfe8f5"
     });
@@ -38,15 +40,7 @@ export class MainMenuScene extends Phaser.Scene {
       this.scene.start("GameScene");
     });
     this.button(96, 392, "Permanent Upgrades", () => this.scene.start("UpgradeScene"));
-    this.button(96, 454, save.muted ? "Unmute Audio" : "Mute Audio", () => {
-      save.muted = !save.muted;
-      saveGame(save);
-      this.scene.restart();
-    });
-    this.button(96, 516, "Reset Save", () => {
-      resetSave();
-      this.scene.restart();
-    });
+    this.button(96, 454, "Settings", () => this.scene.start("SettingsScene"));
 
     this.add.text(610, 278, "Controls", { fontSize: "24px", color: "#ffd166" });
     this.add.text(610, 322, "WASD move\nMouse aim and fire\nSpace dodge\nE interact\nP pause\nM mute", {

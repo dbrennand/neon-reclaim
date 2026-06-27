@@ -286,6 +286,7 @@ export class GameScene extends Phaser.Scene {
     if (room.type === "loot" && !room.cleared) {
       this.spawnChipBurst(512, 350, 34 + this.run.dungeonIndex * 18);
       room.cleared = true;
+      this.run.roomsCleared += 1;
       this.hintText.setText("Recovered an abandoned microchip cache.");
       return;
     }
@@ -680,6 +681,7 @@ export class GameScene extends Phaser.Scene {
 
     if (enemy.hp <= 0) {
       enemy.dead = true;
+      this.run.enemiesDefeated += 1;
       const chips = enemy.definition?.chipValue ?? 42 + this.run.dungeonIndex * 12;
       this.spawnChipBurst(enemySprite.x, enemySprite.y, chips);
       enemySprite.disableBody(true, true);
@@ -813,6 +815,7 @@ export class GameScene extends Phaser.Scene {
     }
     const value = Number(chip.getData("value") ?? 0);
     this.run.chips += value;
+    this.run.chipsCollected += value;
     this.removePersistedChip(chip.getData("chipId") as string | undefined);
     this.playChipSound();
     chip.disableBody(true, true);
@@ -900,7 +903,14 @@ export class GameScene extends Phaser.Scene {
 
   private clearRoom(): void {
     const room = this.currentRoom();
+    const newlyCleared = !room.cleared;
     room.cleared = true;
+    if (newlyCleared) {
+      this.run.roomsCleared += 1;
+      if (room.type === "boss") {
+        this.run.bossesDefeated += 1;
+      }
+    }
     this.hintText.setText(
       room.type === "boss" ? "Boss defeated. Use an exit to advance." : "Room clear. Exits unlocked."
     );
@@ -1181,15 +1191,19 @@ export class GameScene extends Phaser.Scene {
     const retained = Math.floor(this.run.chips * retention);
     this.save.retainedChips += retained;
     this.save.bestDungeonReached = Math.max(this.save.bestDungeonReached, this.run.dungeonIndex);
-    weaponById(this.run.weaponId);
     if (!this.save.unlockedBlueprints.includes(this.run.weaponId)) {
       this.save.unlockedBlueprints.push(this.run.weaponId);
     }
     saveGame(this.save);
     const payload = {
-      chipsCollected: this.run.chips,
+      chipsCarried: this.run.chips,
+      chipsCollected: this.run.chipsCollected,
       chipsRetained: retained,
       dungeonReached: this.run.dungeonIndex,
+      roomsCleared: this.run.roomsCleared,
+      enemiesDefeated: this.run.enemiesDefeated,
+      bossesDefeated: this.run.bossesDefeated,
+      weaponName: weaponById(this.run.weaponId).name,
       victory
     };
     endRun();

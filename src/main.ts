@@ -4,6 +4,7 @@ import { BootScene } from "./scenes/BootScene";
 import { DeathScene } from "./scenes/DeathScene";
 import { GameScene } from "./scenes/GameScene";
 import { MainMenuScene } from "./scenes/MainMenuScene";
+import { SettingsScene } from "./scenes/SettingsScene";
 import { UpgradeScene } from "./scenes/UpgradeScene";
 import { VendorScene } from "./scenes/VendorScene";
 import { VictoryScene } from "./scenes/VictoryScene";
@@ -25,7 +26,7 @@ const config: Phaser.Types.Core.GameConfig = {
       debug: false
     }
   },
-  scene: [BootScene, MainMenuScene, UpgradeScene, GameScene, VendorScene, DeathScene, VictoryScene]
+  scene: [BootScene, MainMenuScene, SettingsScene, UpgradeScene, GameScene, VendorScene, DeathScene, VictoryScene]
 };
 
 new Phaser.Game(config);
