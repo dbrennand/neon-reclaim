@@ -23,6 +23,9 @@ const EXIT_RIGHT = 962;
 const EXIT_TOP = 112;
 const EXIT_BOTTOM = 626;
 const SAFE_SPAWN_DISTANCE = 230;
+const BASE_PLAYER_SPEED = 210;
+const MIN_PLAYER_SPEED = 120;
+const DODGE_SPEED_MULTIPLIER = 3.3;
 
 export class GameScene extends Phaser.Scene {
   private run!: RunState;
@@ -78,7 +81,7 @@ export class GameScene extends Phaser.Scene {
     this.player.setCollideWorldBounds(true);
     this.player.setDamping(true);
     this.player.setDrag(0.88);
-    this.player.setMaxVelocity(360);
+    this.syncPlayerLoadout();
 
     this.keys = this.input.keyboard!.addKeys("W,A,S,D,SPACE,E,P,M") as Keys;
     this.input.on("pointerdown", () => {
@@ -353,7 +356,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updatePlayer(time: number): void {
-    const speed = 210 + this.run.speedBonus;
+    this.syncPlayerLoadout();
+    const speed = this.playerMoveSpeed();
     const direction = new Phaser.Math.Vector2(0, 0);
     if (this.keys.A.isDown) direction.x -= 1;
     if (this.keys.D.isDown) direction.x += 1;
@@ -375,11 +379,26 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE) && time > this.dodgeReadyAt && direction.lengthSq() > 0) {
-      this.player.setVelocity(direction.x * speed * 3.3, direction.y * speed * 3.3);
+      this.player.setVelocity(
+        direction.x * speed * DODGE_SPEED_MULTIPLIER,
+        direction.y * speed * DODGE_SPEED_MULTIPLIER
+      );
       this.lastHitAt = time + 220;
       this.dodgeReadyAt = time + 800;
       this.tweens.add({ targets: this.player, alpha: 0.45, yoyo: true, duration: 110, repeat: 1 });
     }
+  }
+
+  private playerMoveSpeed(): number {
+    return Math.max(MIN_PLAYER_SPEED, BASE_PLAYER_SPEED + this.run.speedBonus);
+  }
+
+  private syncPlayerLoadout(): void {
+    const textureKey = this.run.armor > 0 ? "player-armored" : "player";
+    if (this.player.texture.key !== textureKey) {
+      this.player.setTexture(textureKey);
+    }
+    this.player.setMaxVelocity(this.playerMoveSpeed() * DODGE_SPEED_MULTIPLIER);
   }
 
   private fireWeapon(time: number): void {
@@ -739,6 +758,7 @@ export class GameScene extends Phaser.Scene {
       this.player.setTint(0xf15bb5);
       this.time.delayedCall(220, () => this.player.clearTint());
       this.run.speedBonus = Math.max(-55, this.run.speedBonus - 12);
+      this.syncPlayerLoadout();
     }
     this.destroyProjectile(projectile);
   }
@@ -1270,7 +1290,7 @@ export class GameScene extends Phaser.Scene {
   private updateHud(): void {
     const weapon = weaponById(this.run.weaponId);
     this.statusText.setText(
-      `HP ${Math.max(0, Math.ceil(this.run.hp))}/${this.run.maxHp}   Chips ${this.run.chips}   Armor ${this.run.armor}   Weapon ${weapon.name}`
+      `HP ${Math.max(0, Math.ceil(this.run.hp))}/${this.run.maxHp}   Chips ${this.run.chips}   Armor ${this.run.armor}   Speed ${this.playerMoveSpeed()}   Weapon ${weapon.name}`
     );
   }
 

@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { bosses, enemies, weapons } from "../data";
+import type { BossDefinition, EnemyBehavior } from "../types";
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -9,13 +10,20 @@ export class BootScene extends Phaser.Scene {
   create(): void {
     this.createPlayerTexture();
     this.createSharedTextures();
-    enemies.forEach((enemy) => this.createRobotTexture(`enemy-${enemy.id}`, enemy.color, enemy.accent, enemy.radius));
-    bosses.forEach((boss) => this.createBossTexture(`boss-${boss.id}`, boss.color, boss.accent));
+    enemies.forEach((enemy) =>
+      this.createRobotTexture(`enemy-${enemy.id}`, enemy.id, enemy.behavior, enemy.color, enemy.accent, enemy.radius)
+    );
+    bosses.forEach((boss) => this.createBossTexture(`boss-${boss.id}`, boss));
     weapons.forEach((weapon) => this.createProjectileTexture(`projectile-${weapon.id}`, weapon.id, weapon.color));
     this.scene.start("MainMenuScene");
   }
 
   private createPlayerTexture(): void {
+    this.drawPlayerTexture("player", false);
+    this.drawPlayerTexture("player-armored", true);
+  }
+
+  private drawPlayerTexture(key: string, armored: boolean): void {
     const graphics = this.make.graphics({ x: 0, y: 0 });
 
     // Top-down human survivor: head, jacket, arms, legs, visor, and sidearm.
@@ -50,11 +58,37 @@ export class BootScene extends Phaser.Scene {
     graphics.fillStyle(0x54d6ff, 1);
     graphics.fillCircle(41, 16, 2);
 
-    graphics.generateTexture("player", 44, 48);
+    if (armored) {
+      graphics.fillStyle(0xd8edf7, 0.96);
+      graphics.fillRoundedRect(10, 15, 24, 8, 3);
+      graphics.fillRoundedRect(11, 23, 22, 13, 4);
+      graphics.fillStyle(0x465867, 1);
+      graphics.fillRoundedRect(14, 18, 16, 4, 2);
+      graphics.fillRoundedRect(15, 25, 14, 8, 2);
+      graphics.lineStyle(2, 0xffd166, 0.9);
+      graphics.lineBetween(22, 16, 22, 36);
+      graphics.fillStyle(0xd8edf7, 0.92);
+      graphics.fillRoundedRect(4, 17, 9, 11, 3);
+      graphics.fillRoundedRect(31, 17, 9, 11, 3);
+      graphics.fillRoundedRect(13, 34, 10, 5, 2);
+      graphics.fillRoundedRect(22, 34, 10, 5, 2);
+      graphics.fillStyle(0xffd166, 1);
+      graphics.fillCircle(12, 19, 2);
+      graphics.fillCircle(32, 19, 2);
+    }
+
+    graphics.generateTexture(key, 44, 48);
     graphics.destroy();
   }
 
-  private createRobotTexture(key: string, color: number, accent: number, radius: number): void {
+  private createRobotTexture(
+    key: string,
+    enemyId: string,
+    behavior: EnemyBehavior,
+    color: number,
+    accent: number,
+    radius: number
+  ): void {
     const size = Math.max(46, radius * 2 + 20);
     const center = size / 2;
     const graphics = this.make.graphics({ x: 0, y: 0 });
@@ -85,25 +119,166 @@ export class BootScene extends Phaser.Scene {
     graphics.fillRoundedRect(center + radius * 1.08, center + radius * 0.26, radius * 0.72, radius * 0.22, 2);
     graphics.lineStyle(2, accent, 1);
     graphics.strokeRoundedRect(center - radius * 0.7, center - radius * 1.15, radius * 1.4, radius * 2.15, 6);
+    this.addRobotVariantDetails(graphics, enemyId, behavior, center, radius, color, accent);
     graphics.generateTexture(key, size, size);
     graphics.destroy();
   }
 
-  private createBossTexture(key: string, color: number, accent: number): void {
+  private addRobotVariantDetails(
+    graphics: Phaser.GameObjects.Graphics,
+    enemyId: string,
+    behavior: EnemyBehavior,
+    center: number,
+    radius: number,
+    color: number,
+    accent: number
+  ): void {
+    switch (behavior) {
+      case "swarm":
+        graphics.fillStyle(accent, 0.95);
+        graphics.fillTriangle(
+          center,
+          center - radius * 1.42,
+          center - radius * 0.38,
+          center - radius,
+          center + radius * 0.38,
+          center - radius
+        );
+        graphics.lineStyle(2, accent, 0.9);
+        graphics.lineBetween(
+          center - radius * 1.4,
+          center + radius * 0.24,
+          center - radius * 1.9,
+          center + radius * 0.75
+        );
+        graphics.lineBetween(
+          center + radius * 1.4,
+          center + radius * 0.24,
+          center + radius * 1.9,
+          center + radius * 0.75
+        );
+        break;
+      case "shield":
+        graphics.fillStyle(0xdcecff, 0.92);
+        graphics.fillRoundedRect(center - radius * 1.75, center - radius * 0.35, radius * 0.62, radius * 1.8, 4);
+        graphics.fillRoundedRect(center + radius * 1.13, center - radius * 0.35, radius * 0.62, radius * 1.8, 4);
+        graphics.lineStyle(2, accent, 0.9);
+        graphics.strokeRoundedRect(center - radius * 1.72, center - radius * 0.31, radius * 0.56, radius * 1.68, 4);
+        graphics.strokeRoundedRect(center + radius * 1.16, center - radius * 0.31, radius * 0.56, radius * 1.68, 4);
+        break;
+      case "sniper":
+        graphics.fillStyle(accent, 1);
+        graphics.fillCircle(center, center - radius * 0.76, radius * 0.2);
+        graphics.fillStyle(color, 0.95);
+        graphics.fillRoundedRect(center + radius * 0.58, center - radius * 0.15, radius * 1.55, radius * 0.24, 2);
+        graphics.fillStyle(0xffffff, 0.95);
+        graphics.fillRoundedRect(center + radius * 1.42, center - radius * 0.09, radius * 0.64, radius * 0.11, 1);
+        break;
+      case "mineLayer":
+        graphics.fillStyle(0x111820, 1);
+        graphics.fillCircle(center - radius * 0.45, center + radius * 0.95, radius * 0.32);
+        graphics.fillCircle(center + radius * 0.45, center + radius * 0.95, radius * 0.32);
+        graphics.fillStyle(accent, 0.95);
+        graphics.fillCircle(center - radius * 0.45, center + radius * 0.95, radius * 0.15);
+        graphics.fillCircle(center + radius * 0.45, center + radius * 0.95, radius * 0.15);
+        break;
+      case "support":
+        graphics.lineStyle(3, accent, 0.9);
+        graphics.strokeCircle(center, center - radius * 1.1, radius * 0.56);
+        graphics.fillStyle(accent, 1);
+        graphics.fillRoundedRect(center - radius * 0.12, center - radius * 0.07, radius * 0.24, radius * 0.78, 1);
+        graphics.fillRoundedRect(center - radius * 0.39, center + radius * 0.2, radius * 0.78, radius * 0.24, 1);
+        break;
+      case "hacker":
+        graphics.fillStyle(accent, 0.32);
+        graphics.fillEllipse(center, center + radius * 0.3, radius * 2.25, radius * 2.55);
+        graphics.lineStyle(2, accent, 1);
+        graphics.lineBetween(
+          center - radius * 0.46,
+          center - radius * 1.05,
+          center - radius * 0.9,
+          center - radius * 1.55
+        );
+        graphics.lineBetween(
+          center + radius * 0.46,
+          center - radius * 1.05,
+          center + radius * 0.9,
+          center - radius * 1.55
+        );
+        graphics.fillStyle(0xffffff, 0.9);
+        graphics.fillRect(center - radius * 0.5, center + radius * 0.48, radius, 2);
+        break;
+      case "boss":
+        break;
+    }
+
+    const idMarker = enemyId.charCodeAt(0) + enemyId.charCodeAt(enemyId.length - 1);
+    const markerCount = (idMarker % 3) + 1;
+    graphics.fillStyle(accent, 0.95);
+    for (let marker = 0; marker < markerCount; marker += 1) {
+      graphics.fillCircle(center - radius * 0.34 + marker * radius * 0.34, center + radius * 0.18, 2);
+    }
+  }
+
+  private createBossTexture(key: string, boss: BossDefinition): void {
     const graphics = this.make.graphics({ x: 0, y: 0 });
+    graphics.fillStyle(0x080a0f, 0.92);
+    graphics.fillEllipse(40, 50, 70, 52);
     graphics.fillStyle(0x101018, 1);
     graphics.fillRoundedRect(3, 7, 74, 66, 10);
-    graphics.fillStyle(color, 1);
+    graphics.fillStyle(boss.color, 1);
     graphics.fillRoundedRect(9, 13, 62, 54, 8);
     graphics.fillStyle(0x080a0f, 1);
     graphics.fillRect(20, 28, 40, 12);
-    graphics.fillStyle(accent, 1);
+    graphics.fillStyle(boss.accent, 1);
     graphics.fillCircle(30, 34, 4);
     graphics.fillCircle(50, 34, 4);
-    graphics.lineStyle(3, accent, 1);
+    graphics.lineStyle(3, boss.accent, 1);
     graphics.strokeRoundedRect(7, 11, 66, 58, 10);
+    this.addBossVariantDetails(graphics, boss);
     graphics.generateTexture(key, 80, 80);
     graphics.destroy();
+  }
+
+  private addBossVariantDetails(graphics: Phaser.GameObjects.Graphics, boss: BossDefinition): void {
+    switch (boss.id) {
+      case "traffic-king":
+        graphics.fillStyle(0x151922, 1);
+        graphics.fillRoundedRect(31, 3, 18, 70, 8);
+        [0xff4d6d, 0xffd166, 0x63f7b4].forEach((light, index) => {
+          graphics.fillStyle(light, 1);
+          graphics.fillCircle(40, 17 + index * 18, 5);
+        });
+        graphics.lineStyle(3, boss.accent, 0.9);
+        graphics.lineBetween(14, 20, 3, 9);
+        graphics.lineBetween(66, 20, 77, 9);
+        break;
+      case "retail-warden":
+        graphics.fillStyle(0x0d1520, 1);
+        graphics.fillRoundedRect(14, 12, 52, 16, 4);
+        graphics.fillStyle(0xffffff, 0.92);
+        for (let x = 20; x <= 58; x += 7) {
+          graphics.fillRect(x, 15, 3, 10);
+        }
+        graphics.fillStyle(boss.accent, 0.95);
+        graphics.fillTriangle(10, 10, 70, 10, 40, 0);
+        graphics.lineStyle(4, boss.accent, 0.86);
+        graphics.lineBetween(18, 60, 62, 60);
+        break;
+      case "core-seraph":
+        graphics.lineStyle(4, boss.accent, 0.9);
+        graphics.strokeCircle(40, 12, 13);
+        graphics.fillStyle(boss.accent, 0.34);
+        graphics.fillTriangle(9, 18, 30, 42, 4, 62);
+        graphics.fillTriangle(71, 18, 50, 42, 76, 62);
+        graphics.fillStyle(0xffffff, 0.86);
+        graphics.fillCircle(40, 34, 7);
+        graphics.fillStyle(boss.color, 0.8);
+        graphics.fillCircle(40, 34, 3);
+        break;
+      default:
+        break;
+    }
   }
 
   private createProjectileTexture(key: string, weaponId: string, color: number): void {
