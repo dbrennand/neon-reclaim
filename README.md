@@ -20,15 +20,15 @@ Neon Reclaim is a browser-based sci-fi dungeon crawler built with Phaser, Vite, 
 
 ## Controls
 
-| Input               | Action                           |
-| ------------------- | -------------------------------- |
-| `W`, `A`, `S`, `D`  | Move                             |
-| Mouse click         | Aim and fire                     |
-| `Space`             | Dodge                            |
-| `E`                 | Interact                         |
-| `P`                 | Pause                            |
-| `M`                 | Mute or unmute audio             |
-| `Esc` / `Backspace` | Leave upgrade and vendor screens |
+| Input               | Action                                      |
+| ------------------- | ------------------------------------------- |
+| `W`, `A`, `S`, `D`  | Move                                        |
+| Mouse click         | Aim and fire                                |
+| `Space`             | Dodge                                       |
+| `E`                 | Interact                                    |
+| `P`                 | Pause                                       |
+| `M`                 | Mute or unmute audio                        |
+| `Esc` / `Backspace` | Leave upgrade, vendor, and settings screens |
 
 ## Tech Stack
 
