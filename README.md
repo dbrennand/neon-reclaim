@@ -36,12 +36,6 @@ Neon Reclaim is a browser-based sci-fi dungeon crawler built with Phaser, Vite, 
 
 Use a Node.js version supported by the project:
 
-```bash
-nvm use
-```
-
-The project targets:
-
 ```text
 ^20.19.0 || ^22.13.0 || >=24
 ```
