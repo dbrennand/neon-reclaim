@@ -24,14 +24,15 @@ export class VictoryScene extends Phaser.Scene {
     });
     this.add.text(128, 206, "You broke the district AI chain and recovered enough code to rebuild.", {
       fontSize: "24px",
-      color: "#e8f6ff"
+      color: "#e8f6ff",
+      wordWrap: { width: 760 }
     });
-    this.add.text(128, 268, `Microchips collected: ${payload.chipsCollected}`, { fontSize: "24px", color: "#e8f6ff" });
-    this.add.text(128, 308, `Microchips carried: ${payload.chipsCarried}`, { fontSize: "24px", color: "#e8f6ff" });
-    this.add.text(128, 348, `Retained for upgrades: ${payload.chipsRetained}`, { fontSize: "24px", color: "#63f7b4" });
+    this.add.text(128, 292, `Microchips collected: ${payload.chipsCollected}`, { fontSize: "24px", color: "#e8f6ff" });
+    this.add.text(128, 332, `Microchips carried: ${payload.chipsCarried}`, { fontSize: "24px", color: "#e8f6ff" });
+    this.add.text(128, 372, `Retained for upgrades: ${payload.chipsRetained}`, { fontSize: "24px", color: "#63f7b4" });
     this.add.text(
       584,
-      268,
+      292,
       [
         `Rooms cleared: ${payload.roomsCleared}`,
         `Enemies defeated: ${payload.enemiesDefeated}`,
@@ -44,8 +45,8 @@ export class VictoryScene extends Phaser.Scene {
         color: "#cfe8f5"
       }
     );
-    this.button(128, 438, "New Run", () => this.scene.start("MainMenuScene"));
-    this.button(128, 500, "Permanent Upgrades", () => this.scene.start("UpgradeScene"));
+    this.button(128, 462, "New Run", () => this.scene.start("MainMenuScene"));
+    this.button(128, 524, "Permanent Upgrades", () => this.scene.start("UpgradeScene"));
   }
 
   private button(x: number, y: number, label: string, onClick: () => void): void {
