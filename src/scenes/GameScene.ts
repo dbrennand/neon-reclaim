@@ -26,6 +26,7 @@ const SAFE_SPAWN_DISTANCE = 230;
 const BASE_PLAYER_SPEED = 210;
 const MIN_PLAYER_SPEED = 120;
 const DODGE_SPEED_MULTIPLIER = 3.3;
+const HINT_TEXT_Y = 684;
 
 export class GameScene extends Phaser.Scene {
   private run!: RunState;
@@ -150,7 +151,7 @@ export class GameScene extends Phaser.Scene {
       wordWrap: { width: 430 }
     });
     this.hintText = this.add
-      .text(512, 668, "", {
+      .text(512, HINT_TEXT_Y, "", {
         fontSize: "18px",
         color: "#e8f6ff",
         backgroundColor: "#101721",
@@ -1304,7 +1305,7 @@ export class GameScene extends Phaser.Scene {
   private updateHud(): void {
     const weapon = weaponById(this.run.weaponId);
     this.statusText.setText(
-      `HP ${Math.max(0, Math.ceil(this.run.hp))}/${this.run.maxHp}   Chips ${this.run.chips}   Armor ${this.run.armor}   Speed ${this.playerMoveSpeed()}   Weapon ${weapon.name}`
+      `HP: ${Math.max(0, Math.ceil(this.run.hp))}/${this.run.maxHp}   Chips: ${this.run.chips}   Armor: ${this.run.armor}   Speed: ${this.playerMoveSpeed()}   Weapon: ${weapon.name}`
     );
   }
 
