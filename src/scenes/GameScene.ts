@@ -51,6 +51,11 @@ interface TouchStick {
   vector: Phaser.Math.Vector2;
 }
 
+interface TouchPointerIdentity {
+  pointerId?: number;
+  pointerIdentifier?: number;
+}
+
 interface TouchButton {
   container: Phaser.GameObjects.Container;
   hit: Phaser.GameObjects.Arc;
@@ -76,16 +81,17 @@ const BASE_PLAYER_SPEED = 210;
 const MIN_PLAYER_SPEED = 120;
 const DODGE_SPEED_MULTIPLIER = 3.3;
 const HINT_TEXT_Y = 684;
-const TOUCH_STICK_RADIUS = 74;
-const TOUCH_STICK_HIT_RADIUS = 128;
+const TOUCH_STICK_RADIUS = 84;
+const TOUCH_STICK_HIT_RADIUS = 146;
 const TOUCH_STICK_DEAD_ZONE = 0.18;
-const TOUCH_STICK_SIDE_INSET = 124;
-const TOUCH_STICK_BOTTOM_INSET = 104;
+const TOUCH_STICK_SIDE_INSET = 138;
+const TOUCH_STICK_BOTTOM_INSET = 116;
 const TOUCH_BUTTON_RADIUS = 42;
 const TOUCH_BUTTON_HIT_RADIUS = 58;
 const TOUCH_BUTTON_EDGE_INSET = 70;
 const TOUCH_BUTTON_GAP = 98;
 const TOUCH_ACTION_BUTTON_GAP = 204;
+const TOUCH_MOVE_GRACE_MS = 180;
 
 export class GameScene extends Phaser.Scene {
   private run!: RunState;
@@ -124,6 +130,9 @@ export class GameScene extends Phaser.Scene {
   private touchButtons: TouchButton[] = [];
   private touchAimActive = false;
   private lastAimDirection = new Phaser.Math.Vector2(1, 0);
+  private lastTouchMoveDirection = new Phaser.Math.Vector2(0, 0);
+  private lastTouchMoveAt = -9999;
+  private activeTouchButtonPointers: TouchPointerIdentity[] = [];
   private touchDodgeQueued = false;
   private touchInteractQueued = false;
 
@@ -762,6 +771,10 @@ export class GameScene extends Phaser.Scene {
       direction.add(this.moveStick.vector);
     }
 
+    if (direction.lengthSq() === 0 && this.time.now - this.lastTouchMoveAt <= TOUCH_MOVE_GRACE_MS) {
+      direction.add(this.lastTouchMoveDirection);
+    }
+
     if (direction.lengthSq() > 0) {
       direction.normalize();
     }
@@ -815,7 +828,7 @@ export class GameScene extends Phaser.Scene {
 
   private createTouchStick(label: string): TouchStick {
     const base = this.add.circle(0, 0, TOUCH_STICK_RADIUS, 0x101721, 0.48).setStrokeStyle(3, 0x54d6ff, 0.45);
-    const knob = this.add.circle(0, 0, 28, 0x54d6ff, 0.58).setStrokeStyle(2, 0xe8f6ff, 0.58);
+    const knob = this.add.circle(0, 0, 32, 0x54d6ff, 0.58).setStrokeStyle(2, 0xe8f6ff, 0.58);
     const text = this.add
       .text(0, 0, label, { fontSize: "13px", color: "#cfe8f5", fontStyle: "bold" })
       .setOrigin(0.5, 0.5);
@@ -844,12 +857,13 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5, 0.5)
       .setData("touchControl", true);
     const press = (
-      _pointer: Phaser.Input.Pointer,
+      pointer: Phaser.Input.Pointer,
       _localX: number,
       _localY: number,
       event: Phaser.Types.Input.EventData
     ): void => {
       event.cancelled = true;
+      this.registerTouchButtonPointer(pointer);
       this.handleTouchAction(action);
     };
 
@@ -866,8 +880,9 @@ export class GameScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
       .on(
         "pointerdown",
-        (_pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: Phaser.Types.Input.EventData) => {
+        (pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: Phaser.Types.Input.EventData) => {
           event.cancelled = true;
+          this.registerTouchButtonPointer(pointer);
           this.handleTouchAction(action);
         }
       );
@@ -1029,6 +1044,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleTouchPointerUp(pointer: Phaser.Input.Pointer): void {
+    if (this.isTouchButtonPointer(pointer)) {
+      this.unregisterTouchButtonPointer(pointer);
+      return;
+    }
+
     if (this.moveStick && this.isStickPointer(this.moveStick, pointer)) {
       this.releaseTouchStick(this.moveStick);
     }
@@ -1067,6 +1087,10 @@ export class GameScene extends Phaser.Scene {
     }
     if (stick === this.aimStick && stick.vector.lengthSq() > 0) {
       this.lastAimDirection.copy(stick.vector).normalize();
+    }
+    if (stick === this.moveStick && stick.vector.lengthSq() > 0) {
+      this.lastTouchMoveDirection.copy(stick.vector).normalize();
+      this.lastTouchMoveAt = this.time.now;
     }
     this.updateTouchStickKnob(stick, clamped.x, clamped.y);
   }
@@ -1111,6 +1135,33 @@ export class GameScene extends Phaser.Scene {
     );
   }
 
+  private registerTouchButtonPointer(pointer: Phaser.Input.Pointer): void {
+    if (this.isTouchButtonPointer(pointer)) {
+      return;
+    }
+    this.activeTouchButtonPointers.push({
+      pointerId: pointer.pointerId,
+      pointerIdentifier: pointer.identifier
+    });
+  }
+
+  private unregisterTouchButtonPointer(pointer: Phaser.Input.Pointer): void {
+    this.activeTouchButtonPointers = this.activeTouchButtonPointers.filter(
+      (identity) => !this.isPointerIdentity(pointer, identity)
+    );
+  }
+
+  private isTouchButtonPointer(pointer: Phaser.Input.Pointer): boolean {
+    return this.activeTouchButtonPointers.some((identity) => this.isPointerIdentity(pointer, identity));
+  }
+
+  private isPointerIdentity(pointer: Phaser.Input.Pointer, identity: TouchPointerIdentity): boolean {
+    return (
+      (identity.pointerId !== undefined && identity.pointerId === pointer.pointerId) ||
+      (identity.pointerIdentifier !== undefined && identity.pointerIdentifier === pointer.identifier)
+    );
+  }
+
   private findStickPointer(stick: TouchStick): Phaser.Input.Pointer | undefined {
     if (stick.pointer?.isDown) {
       return stick.pointer;
@@ -1126,6 +1177,7 @@ export class GameScene extends Phaser.Scene {
       this.releaseTouchStick(this.aimStick);
     }
     this.touchAimActive = false;
+    this.activeTouchButtonPointers = [];
   }
 
   private touchPoint(pointer: Phaser.Input.Pointer, stick: TouchStick): Phaser.Math.Vector2 {
