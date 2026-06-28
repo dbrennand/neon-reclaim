@@ -2,6 +2,8 @@
 
 Neon Reclaim is a browser-based sci-fi dungeon crawler built with Phaser, Vite, and TypeScript. You fight through machine-held city districts, salvage microchips, buy field upgrades, and invest in permanent improvements between runs.
 
+Play Neon Reclaim at [neonreclaim.games.dbren.uk](https://neonreclaim.games.dbren.uk).
+
 ## Screenshots
 
 | Main menu                                                 | Gameplay room                                                     |
