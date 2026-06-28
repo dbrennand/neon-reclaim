@@ -3,7 +3,15 @@ import { bossById, dungeons, enemyById, weaponById } from "../data";
 import { getAdjacentRooms, Rng } from "../dungeon";
 import { loadSave, saveGame } from "../save";
 import { advanceDungeon, currentRun, currentSave, endRun, setCurrentSave, startNewRun } from "../state";
-import type { BossDefinition, EnemyDefinition, RoomChipDrop, RoomDefinition, RunState, SaveState } from "../types";
+import type {
+  BossDefinition,
+  DungeonTheme,
+  EnemyDefinition,
+  RoomChipDrop,
+  RoomDefinition,
+  RunState,
+  SaveState
+} from "../types";
 
 interface EnemyRuntime {
   sprite: Phaser.Physics.Arcade.Sprite;
@@ -18,10 +26,29 @@ interface EnemyRuntime {
 
 type Keys = Record<"W" | "A" | "S" | "D" | "SPACE" | "E" | "P" | "M", Phaser.Input.Keyboard.Key>;
 
+interface RoomPalette {
+  floor: number;
+  panel: number;
+  grid: number;
+  trim: number;
+  prop: number;
+  accent: number;
+  shadow: number;
+  warning: number;
+}
+
 const EXIT_LEFT = 62;
 const EXIT_RIGHT = 962;
 const EXIT_TOP = 112;
 const EXIT_BOTTOM = 626;
+const ROOM_LEFT = 32;
+const ROOM_RIGHT = 992;
+const ROOM_TOP = 82;
+const ROOM_BOTTOM = 656;
+const ROOM_CENTER_X = 512;
+const ROOM_CENTER_Y = 369;
+const ROOM_WIDTH = ROOM_RIGHT - ROOM_LEFT;
+const ROOM_HEIGHT = ROOM_BOTTOM - ROOM_TOP;
 const SAFE_SPAWN_DISTANCE = 230;
 const BASE_PLAYER_SPEED = 210;
 const MIN_PLAYER_SPEED = 120;
@@ -199,22 +226,257 @@ export class GameScene extends Phaser.Scene {
     }
 
     const dungeon = dungeons[this.run.dungeonIndex];
-    const palette = {
-      downtown: { floor: 0x111820, grid: 0x24394a, prop: 0xffd166 },
-      mall: { floor: 0x191622, grid: 0x473550, prop: 0xff8fab },
-      factory: { floor: 0x0f1722, grid: 0x24515a, prop: 0x00f5d4 }
-    }[dungeon.theme];
+    const palette = this.roomPalette(dungeon.theme);
+    const detailRng = new Rng(this.run.seed + this.run.dungeonIndex * 1301 + room.x * 193 + room.y * 389);
 
-    const floor = this.add.rectangle(512, 369, 960, 574, palette.floor).setData("roomArt", true);
-    floor.setStrokeStyle(4, palette.grid, 1).setDepth(-10);
+    this.drawBaseFloor(palette);
+    this.drawFloorDetails(palette, detailRng);
+    this.drawThemedDecals(dungeon.theme, room, palette, detailRng);
+    this.drawRoomTypeAccent(room, palette);
+    this.placeRoomObstacles(room, palette);
+    this.drawDoors(room);
+  }
 
-    for (let x = 64; x < 992; x += 64) {
-      this.add.line(0, 0, x, 82, x, 656, palette.grid, 0.24).setOrigin(0, 0).setData("roomArt", true).setDepth(-9);
+  private roomPalette(theme: DungeonTheme): RoomPalette {
+    return {
+      downtown: {
+        floor: 0x111820,
+        panel: 0x172231,
+        grid: 0x24394a,
+        trim: 0x37566e,
+        prop: 0xffd166,
+        accent: 0x54d6ff,
+        shadow: 0x05080d,
+        warning: 0xff4d6d
+      },
+      mall: {
+        floor: 0x191622,
+        panel: 0x241d2d,
+        grid: 0x473550,
+        trim: 0x6a4970,
+        prop: 0xff8fab,
+        accent: 0xffd166,
+        shadow: 0x07050c,
+        warning: 0xff4d6d
+      },
+      factory: {
+        floor: 0x0f1722,
+        panel: 0x142333,
+        grid: 0x24515a,
+        trim: 0x2b6f76,
+        prop: 0x00f5d4,
+        accent: 0x9b5de5,
+        shadow: 0x03070a,
+        warning: 0xffd166
+      }
+    }[theme];
+  }
+
+  private drawBaseFloor(palette: RoomPalette): void {
+    const floor = this.add.rectangle(ROOM_CENTER_X, ROOM_CENTER_Y, ROOM_WIDTH, ROOM_HEIGHT, palette.floor);
+    floor.setStrokeStyle(4, palette.grid, 1).setDepth(-30).setData("roomArt", true);
+
+    this.add
+      .rectangle(ROOM_CENTER_X, ROOM_CENTER_Y, ROOM_WIDTH - 42, ROOM_HEIGHT - 42, palette.panel, 0.34)
+      .setStrokeStyle(1, palette.trim, 0.24)
+      .setDepth(-29)
+      .setData("roomArt", true);
+
+    for (let x = 64; x < ROOM_RIGHT; x += 64) {
+      this.addRoomLine(x, ROOM_TOP, x, ROOM_BOTTOM, palette.grid, 0.2, -27);
     }
-    for (let y = 116; y < 656; y += 54) {
-      this.add.line(0, 0, 32, y, 992, y, palette.grid, 0.22).setOrigin(0, 0).setData("roomArt", true).setDepth(-9);
+    for (let y = 116; y < ROOM_BOTTOM; y += 54) {
+      this.addRoomLine(ROOM_LEFT, y, ROOM_RIGHT, y, palette.grid, 0.18, -27);
     }
 
+    this.addRoomLine(ROOM_LEFT + 20, ROOM_TOP + 20, ROOM_RIGHT - 20, ROOM_TOP + 20, palette.trim, 0.28, -26);
+    this.addRoomLine(ROOM_LEFT + 20, ROOM_BOTTOM - 20, ROOM_RIGHT - 20, ROOM_BOTTOM - 20, palette.trim, 0.28, -26);
+    this.addRoomLine(ROOM_LEFT + 20, ROOM_TOP + 20, ROOM_LEFT + 20, ROOM_BOTTOM - 20, palette.trim, 0.28, -26);
+    this.addRoomLine(ROOM_RIGHT - 20, ROOM_TOP + 20, ROOM_RIGHT - 20, ROOM_BOTTOM - 20, palette.trim, 0.28, -26);
+  }
+
+  private drawFloorDetails(palette: RoomPalette, rng: Rng): void {
+    for (let i = 0; i < 18; i += 1) {
+      const x = rng.int(70, 940);
+      const y = rng.int(124, 614);
+      const width = rng.int(26, 96);
+      const height = rng.int(4, 18);
+      this.add
+        .rectangle(x, y, width, height, i % 3 === 0 ? palette.accent : palette.trim, rng.next() * 0.07 + 0.035)
+        .setAngle(rng.int(-8, 8))
+        .setDepth(-25)
+        .setData("roomArt", true);
+    }
+
+    for (let i = 0; i < 12; i += 1) {
+      const x = rng.int(88, 920);
+      const y = rng.int(126, 604);
+      const crackWidth = rng.int(18, 56);
+      this.addRoomLine(x, y, x + crackWidth, y + rng.int(-12, 12), palette.shadow, 0.38, -24);
+      if (i % 2 === 0) {
+        this.addRoomLine(
+          x + crackWidth * 0.45,
+          y,
+          x + crackWidth * 0.58,
+          y + rng.int(8, 22),
+          palette.shadow,
+          0.26,
+          -24
+        );
+      }
+    }
+
+    for (let i = 0; i < 8; i += 1) {
+      this.add
+        .ellipse(rng.int(90, 930), rng.int(130, 602), rng.int(42, 116), rng.int(18, 54), palette.shadow, 0.12)
+        .setAngle(rng.int(-18, 18))
+        .setDepth(-28)
+        .setData("roomArt", true);
+    }
+  }
+
+  private drawThemedDecals(theme: DungeonTheme, room: RoomDefinition, palette: RoomPalette, rng: Rng): void {
+    switch (theme) {
+      case "downtown":
+        this.drawDowntownDecals(palette, rng);
+        break;
+      case "mall":
+        this.drawMallDecals(palette, rng);
+        break;
+      case "factory":
+        this.drawFactoryDecals(room, palette, rng);
+        break;
+    }
+  }
+
+  private drawDowntownDecals(palette: RoomPalette, rng: Rng): void {
+    this.add
+      .rectangle(ROOM_CENTER_X, ROOM_CENTER_Y, ROOM_WIDTH - 96, 116, 0x0a0f16, 0.32)
+      .setStrokeStyle(1, palette.grid, 0.24)
+      .setDepth(-23)
+      .setData("roomArt", true);
+    this.addRoomLine(92, ROOM_CENTER_Y, 932, ROOM_CENTER_Y, palette.prop, 0.26, -22);
+
+    for (let x = 132; x < 900; x += 96) {
+      this.add
+        .rectangle(x, ROOM_CENTER_Y - 36, 42, 8, 0xe8f6ff, 0.2)
+        .setDepth(-21)
+        .setData("roomArt", true);
+      this.add
+        .rectangle(x + 34, ROOM_CENTER_Y + 36, 42, 8, 0xe8f6ff, 0.2)
+        .setDepth(-21)
+        .setData("roomArt", true);
+    }
+
+    for (let i = 0; i < 5; i += 1) {
+      const x = rng.int(104, 900);
+      const y = rng.int(136, 594);
+      this.add.rectangle(x, y, 22, 54, palette.shadow, 0.28).setDepth(-22).setData("roomArt", true);
+      this.add
+        .circle(x, y - 19, 6, i % 2 === 0 ? palette.warning : palette.prop, 0.5)
+        .setDepth(-21)
+        .setData("roomArt", true);
+      this.add.circle(x, y, 6, palette.prop, 0.32).setDepth(-21).setData("roomArt", true);
+      this.add
+        .circle(x, y + 19, 6, palette.accent, 0.32)
+        .setDepth(-21)
+        .setData("roomArt", true);
+    }
+  }
+
+  private drawMallDecals(palette: RoomPalette, rng: Rng): void {
+    for (let x = 82; x < ROOM_RIGHT - 36; x += 96) {
+      for (let y = 122; y < ROOM_BOTTOM - 36; y += 72) {
+        this.add
+          .rectangle(x, y, 76, 52, (x + y) % 2 === 0 ? 0x2a2131 : 0x17131f, 0.28)
+          .setStrokeStyle(1, palette.grid, 0.12)
+          .setDepth(-23)
+          .setData("roomArt", true);
+      }
+    }
+
+    for (let i = 0; i < 6; i += 1) {
+      const x = rng.int(108, 886);
+      const y = rng.int(128, 592);
+      this.add.rectangle(x, y, 84, 22, palette.prop, 0.16).setDepth(-21).setData("roomArt", true);
+      this.add.rectangle(x, y, 58, 4, palette.accent, 0.32).setDepth(-20).setData("roomArt", true);
+    }
+
+    this.add
+      .rectangle(ROOM_CENTER_X, ROOM_CENTER_Y, 162, 312, 0x0f0b14, 0.24)
+      .setStrokeStyle(1, palette.trim, 0.25)
+      .setDepth(-22)
+      .setData("roomArt", true);
+  }
+
+  private drawFactoryDecals(room: RoomDefinition, palette: RoomPalette, rng: Rng): void {
+    for (let x = 96; x < 940; x += 112) {
+      this.add
+        .rectangle(x, ROOM_CENTER_Y, 44, ROOM_HEIGHT - 94, 0x071017, 0.28)
+        .setStrokeStyle(1, palette.grid, 0.2)
+        .setDepth(-23)
+        .setData("roomArt", true);
+      for (let y = 138; y < 604; y += 46) {
+        this.addRoomLine(x - 12, y, x + 12, y, palette.accent, 0.18, -22);
+      }
+    }
+
+    for (let i = 0; i < 10; i += 1) {
+      const x = rng.int(94, 920);
+      const y = rng.int(132, 596);
+      this.add.rectangle(x, y, rng.int(46, 112), 8, palette.prop, 0.14).setDepth(-21).setData("roomArt", true);
+      this.add.rectangle(x, y, 8, rng.int(38, 96), palette.accent, 0.12).setDepth(-21).setData("roomArt", true);
+      this.add.circle(x, y, 5, palette.prop, 0.34).setDepth(-20).setData("roomArt", true);
+    }
+
+    if (room.type === "hazard") {
+      for (let i = 0; i < 4; i += 1) {
+        const x = 240 + i * 180;
+        this.add.rectangle(x, ROOM_CENTER_Y, 92, 92, palette.warning, 0.08).setDepth(-20).setData("roomArt", true);
+        this.addRoomLine(x - 34, ROOM_CENTER_Y - 34, x + 34, ROOM_CENTER_Y + 34, palette.warning, 0.22, -19);
+        this.addRoomLine(x + 34, ROOM_CENTER_Y - 34, x - 34, ROOM_CENTER_Y + 34, palette.warning, 0.22, -19);
+      }
+    }
+  }
+
+  private drawRoomTypeAccent(room: RoomDefinition, palette: RoomPalette): void {
+    switch (room.type) {
+      case "combat":
+        this.drawCornerWarnings(palette.warning, 0.26);
+        break;
+      case "hazard":
+        this.drawCornerWarnings(palette.warning, 0.42);
+        this.add
+          .rectangle(ROOM_CENTER_X, ROOM_CENTER_Y, 308, 156, palette.warning, 0.06)
+          .setStrokeStyle(2, palette.warning, 0.2)
+          .setDepth(-18)
+          .setData("roomArt", true);
+        break;
+      case "loot":
+        this.add
+          .rectangle(ROOM_CENTER_X, 350, 190, 116, palette.prop, 0.12)
+          .setStrokeStyle(2, palette.prop, 0.32)
+          .setDepth(-18)
+          .setData("roomArt", true);
+        this.add.rectangle(ROOM_CENTER_X, 350, 120, 54, palette.accent, 0.08).setDepth(-17).setData("roomArt", true);
+        break;
+    }
+  }
+
+  private drawCornerWarnings(color: number, alpha: number): void {
+    const corners = [
+      { x: 100, y: 142, sx: 1, sy: 1 },
+      { x: 924, y: 142, sx: -1, sy: 1 },
+      { x: 100, y: 596, sx: 1, sy: -1 },
+      { x: 924, y: 596, sx: -1, sy: -1 }
+    ];
+    corners.forEach((corner) => {
+      this.addRoomLine(corner.x, corner.y, corner.x + corner.sx * 58, corner.y, color, alpha, -17);
+      this.addRoomLine(corner.x, corner.y, corner.x, corner.y + corner.sy * 38, color, alpha, -17);
+    });
+  }
+
+  private placeRoomObstacles(room: RoomDefinition, palette: RoomPalette): void {
     const rng = new Rng(this.run.seed + room.x * 101 + room.y * 307);
     let obstacleCount = 0;
     let attempts = 0;
@@ -230,12 +492,26 @@ export class GameScene extends Phaser.Scene {
       this.addBlockingObstacle(x, y, w, h, palette.prop);
       obstacleCount += 1;
     }
-
-    this.drawDoors(room);
   }
 
   private addBlockingObstacle(x: number, y: number, width: number, height: number, color: number): void {
-    const obstacle = this.add.rectangle(x, y, width, height, color, 0.2).setStrokeStyle(1, color, 0.65).setDepth(-8);
+    this.add
+      .rectangle(x + 6, y + 7, width + 8, height + 8, 0x020409, 0.38)
+      .setDepth(-10)
+      .setData("roomArt", true);
+    const obstacle = this.add
+      .rectangle(x, y, width, height, color, 0.22)
+      .setStrokeStyle(2, color, 0.72)
+      .setDepth(-8)
+      .setData("roomArt", true);
+    this.add
+      .rectangle(x, y - height * 0.28, Math.max(8, width - 10), Math.max(2, height * 0.16), 0xe8f6ff, 0.12)
+      .setDepth(-7)
+      .setData("roomArt", true);
+    this.add
+      .rectangle(x - width * 0.28, y, Math.max(2, width * 0.12), Math.max(4, height - 8), color, 0.18)
+      .setDepth(-7)
+      .setData("roomArt", true);
     this.physics.add.existing(obstacle, true);
     this.obstacles.add(obstacle);
     this.obstacleBounds.push(
@@ -264,11 +540,68 @@ export class GameScene extends Phaser.Scene {
       const dx = target.x - room.x;
       const dy = target.y - room.y;
       const color = canExit ? 0x63f7b4 : 0xff4d6d;
-      if (dx === 1) this.add.rectangle(995, 369, 16, 120, color, 0.7).setData("doorArt", true);
-      if (dx === -1) this.add.rectangle(29, 369, 16, 120, color, 0.7).setData("doorArt", true);
-      if (dy === 1) this.add.rectangle(512, 659, 140, 16, color, 0.7).setData("doorArt", true);
-      if (dy === -1) this.add.rectangle(512, 79, 140, 16, color, 0.7).setData("doorArt", true);
+      if (dx === 1) this.drawDoorFrame(995, ROOM_CENTER_Y, 24, 136, color, canExit, "vertical");
+      if (dx === -1) this.drawDoorFrame(29, ROOM_CENTER_Y, 24, 136, color, canExit, "vertical");
+      if (dy === 1) this.drawDoorFrame(ROOM_CENTER_X, 659, 156, 24, color, canExit, "horizontal");
+      if (dy === -1) this.drawDoorFrame(ROOM_CENTER_X, 79, 156, 24, color, canExit, "horizontal");
     });
+  }
+
+  private drawDoorFrame(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    color: number,
+    canExit: boolean,
+    orientation: "horizontal" | "vertical"
+  ): void {
+    this.add
+      .rectangle(x, y, width + 14, height + 14, 0x020409, 0.82)
+      .setDepth(-4)
+      .setData("doorArt", true);
+    this.add
+      .rectangle(x, y, width + 6, height + 6, color, canExit ? 0.18 : 0.12)
+      .setStrokeStyle(2, color, canExit ? 0.82 : 0.55)
+      .setDepth(-3)
+      .setData("doorArt", true);
+    this.add
+      .rectangle(x, y, width, height, color, canExit ? 0.52 : 0.28)
+      .setDepth(-2)
+      .setData("doorArt", true);
+
+    const barOffset = orientation === "horizontal" ? width * 0.26 : height * 0.26;
+    if (orientation === "horizontal") {
+      this.add
+        .rectangle(x - barOffset, y, 12, height + 8, 0x020409, canExit ? 0.25 : 0.72)
+        .setDepth(-1)
+        .setData("doorArt", true);
+      this.add
+        .rectangle(x + barOffset, y, 12, height + 8, 0x020409, canExit ? 0.25 : 0.72)
+        .setDepth(-1)
+        .setData("doorArt", true);
+    } else {
+      this.add
+        .rectangle(x, y - barOffset, width + 8, 12, 0x020409, canExit ? 0.25 : 0.72)
+        .setDepth(-1)
+        .setData("doorArt", true);
+      this.add
+        .rectangle(x, y + barOffset, width + 8, 12, 0x020409, canExit ? 0.25 : 0.72)
+        .setDepth(-1)
+        .setData("doorArt", true);
+    }
+  }
+
+  private addRoomLine(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    color: number,
+    alpha: number,
+    depth: number
+  ): Phaser.GameObjects.Line {
+    return this.add.line(0, 0, x1, y1, x2, y2, color, alpha).setOrigin(0, 0).setDepth(depth).setData("roomArt", true);
   }
 
   private spawnRoomContent(room: RoomDefinition): void {
