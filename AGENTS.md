@@ -199,7 +199,8 @@ git status --short --branch
 ```
 
 - Do not overwrite unrelated user changes.
-- Keep commits focused and use Conventional Commit messages.
+- This project uses Conventional Commits for commit messages. Use subjects in the form `<type>[optional scope]: <description>`.
+- Keep commits focused.
 - Run the appropriate verification command before committing.
 - When asked to push, push the current branch to its upstream unless the user specifies a different branch.
 
