@@ -44,7 +44,9 @@ interface TouchStick {
   base: Phaser.GameObjects.Arc;
   knob: Phaser.GameObjects.Arc;
   label: Phaser.GameObjects.Text;
+  pointer?: Phaser.Input.Pointer;
   pointerId?: number;
+  pointerIdentifier?: number;
   origin: Phaser.Math.Vector2;
   vector: Phaser.Math.Vector2;
 }
@@ -149,6 +151,7 @@ export class GameScene extends Phaser.Scene {
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleTouchPointerMove(pointer));
     this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => this.handleTouchPointerUp(pointer));
     this.input.on("pointerupoutside", (pointer: Phaser.Input.Pointer) => this.handleTouchPointerUp(pointer));
+    this.input.on(Phaser.Input.Events.GAME_OUT, () => this.releaseAllTouchControls());
     this.input.keyboard?.on("keydown", () => this.ensureAudio());
     this.input.keyboard?.on("keydown-P", () => this.togglePause());
     this.input.keyboard?.on("keydown-M", () => this.toggleMute());
@@ -746,7 +749,7 @@ export class GameScene extends Phaser.Scene {
     if (this.keys.W.isDown) direction.y -= 1;
     if (this.keys.S.isDown) direction.y += 1;
 
-    if (this.moveStick && this.moveStick.pointerId !== undefined) {
+    if (this.moveStick?.pointer) {
       direction.add(this.moveStick.vector);
     }
 
@@ -758,7 +761,8 @@ export class GameScene extends Phaser.Scene {
 
   private shouldFire(): boolean {
     const pointer = this.input.activePointer;
-    return this.touchAimActive || (pointer.isDown && !pointer.wasTouch);
+    const touchFire = this.touchAimActive && !!this.aimStick?.pointer && this.aimStick.vector.lengthSq() > 0;
+    return touchFire || (pointer.isDown && !pointer.wasTouch);
   }
 
   private createTouchControls(): void {
@@ -863,15 +867,15 @@ export class GameScene extends Phaser.Scene {
 
   private updateTouchControls(): void {
     [this.moveStick, this.aimStick].forEach((stick) => {
-      if (!stick || stick.pointerId === undefined) {
+      if (!stick || (!stick.pointer && stick.pointerId === undefined && stick.pointerIdentifier === undefined)) {
         return;
       }
-      const pointer = this.findPointer(stick.pointerId);
+      const pointer = this.findStickPointer(stick);
       if (!pointer || !pointer.isDown) {
         this.releaseTouchStick(stick);
         return;
       }
-      this.setTouchStickVector(stick, pointer.x, pointer.y);
+      this.setTouchStickVectorFromPointer(stick, pointer);
     });
   }
 
@@ -886,38 +890,32 @@ export class GameScene extends Phaser.Scene {
     if (this.paused || this.isTouchControlObject(objects)) {
       return;
     }
-    if (this.moveStick && this.isInsideStick(pointer, this.moveStick) && this.moveStick.pointerId === undefined) {
-      this.moveStick.pointerId = pointer.pointerId;
-      this.setTouchStickVector(this.moveStick, pointer.x, pointer.y);
+    if (this.moveStick && this.isInsideStick(pointer, this.moveStick) && !this.moveStick.pointer) {
+      this.assignTouchPointer(this.moveStick, pointer);
+      this.setTouchStickVectorFromPointer(this.moveStick, pointer);
       return;
     }
-    if (this.aimStick && this.isInsideStick(pointer, this.aimStick) && this.aimStick.pointerId === undefined) {
-      this.aimStick.pointerId = pointer.pointerId;
+    if (this.aimStick && this.isInsideStick(pointer, this.aimStick) && !this.aimStick.pointer) {
+      this.assignTouchPointer(this.aimStick, pointer);
       this.touchAimActive = true;
-      this.setTouchStickVector(this.aimStick, pointer.x, pointer.y);
+      this.setTouchStickVectorFromPointer(this.aimStick, pointer);
     }
   }
 
   private handleTouchPointerMove(pointer: Phaser.Input.Pointer): void {
-    if (!pointer.wasTouch) {
-      return;
+    if (this.moveStick && this.isStickPointer(this.moveStick, pointer)) {
+      this.setTouchStickVectorFromPointer(this.moveStick, pointer);
     }
-    if (this.moveStick?.pointerId === pointer.pointerId) {
-      this.setTouchStickVector(this.moveStick, pointer.x, pointer.y);
-    }
-    if (this.aimStick?.pointerId === pointer.pointerId) {
-      this.setTouchStickVector(this.aimStick, pointer.x, pointer.y);
+    if (this.aimStick && this.isStickPointer(this.aimStick, pointer)) {
+      this.setTouchStickVectorFromPointer(this.aimStick, pointer);
     }
   }
 
   private handleTouchPointerUp(pointer: Phaser.Input.Pointer): void {
-    if (!pointer.wasTouch) {
-      return;
-    }
-    if (this.moveStick?.pointerId === pointer.pointerId) {
+    if (this.moveStick && this.isStickPointer(this.moveStick, pointer)) {
       this.releaseTouchStick(this.moveStick);
     }
-    if (this.aimStick?.pointerId === pointer.pointerId) {
+    if (this.aimStick && this.isStickPointer(this.aimStick, pointer)) {
       this.releaseTouchStick(this.aimStick);
       this.touchAimActive = false;
     }
@@ -956,28 +954,69 @@ export class GameScene extends Phaser.Scene {
     this.updateTouchStickKnob(stick, clamped.x, clamped.y);
   }
 
+  private setTouchStickVectorFromPointer(stick: TouchStick, pointer: Phaser.Input.Pointer): void {
+    const point = this.touchPoint(pointer, stick);
+    this.setTouchStickVector(stick, point.x, point.y);
+  }
+
   private updateTouchStickKnob(stick: TouchStick, offsetX = 0, offsetY = 0): void {
     stick.knob.setPosition(stick.origin.x + offsetX, stick.origin.y + offsetY);
   }
 
   private releaseTouchStick(stick: TouchStick): void {
+    stick.pointer = undefined;
     stick.pointerId = undefined;
+    stick.pointerIdentifier = undefined;
     stick.vector.set(0, 0);
     this.updateTouchStickKnob(stick);
   }
 
   private isInsideStick(pointer: Phaser.Input.Pointer, stick: TouchStick): boolean {
-    return (
-      Phaser.Math.Distance.Between(pointer.x, pointer.y, stick.origin.x, stick.origin.y) <= TOUCH_STICK_RADIUS + 38
-    );
+    const point = this.touchPoint(pointer, stick);
+    return Phaser.Math.Distance.Between(point.x, point.y, stick.origin.x, stick.origin.y) <= TOUCH_STICK_RADIUS + 38;
   }
 
   private isTouchControlObject(objects: Phaser.GameObjects.GameObject[]): boolean {
     return objects.some((object) => object.getData("touchControl"));
   }
 
-  private findPointer(pointerId: number): Phaser.Input.Pointer | undefined {
-    return this.input.manager.pointers.find((pointer) => pointer.pointerId === pointerId);
+  private assignTouchPointer(stick: TouchStick, pointer: Phaser.Input.Pointer): void {
+    stick.pointer = pointer;
+    stick.pointerId = pointer.pointerId;
+    stick.pointerIdentifier = pointer.identifier;
+  }
+
+  private isStickPointer(stick: TouchStick, pointer: Phaser.Input.Pointer): boolean {
+    return (
+      stick.pointer === pointer ||
+      (stick.pointerId !== undefined && stick.pointerId === pointer.pointerId) ||
+      (stick.pointerIdentifier !== undefined && stick.pointerIdentifier === pointer.identifier)
+    );
+  }
+
+  private findStickPointer(stick: TouchStick): Phaser.Input.Pointer | undefined {
+    if (stick.pointer?.isDown) {
+      return stick.pointer;
+    }
+    return this.input.manager.pointers.find((pointer) => pointer.isDown && this.isStickPointer(stick, pointer));
+  }
+
+  private releaseAllTouchControls(): void {
+    if (this.moveStick) {
+      this.releaseTouchStick(this.moveStick);
+    }
+    if (this.aimStick) {
+      this.releaseTouchStick(this.aimStick);
+    }
+    this.touchAimActive = false;
+  }
+
+  private touchPoint(pointer: Phaser.Input.Pointer, stick: TouchStick): Phaser.Math.Vector2 {
+    const canvasPoint = new Phaser.Math.Vector2(pointer.x, pointer.y);
+    const screenPoint = new Phaser.Math.Vector2(pointer.position.x, pointer.position.y);
+    const canvasDistance = Phaser.Math.Distance.Between(canvasPoint.x, canvasPoint.y, stick.origin.x, stick.origin.y);
+    const screenDistance = Phaser.Math.Distance.Between(screenPoint.x, screenPoint.y, stick.origin.x, stick.origin.y);
+    return screenDistance < canvasDistance ? screenPoint : canvasPoint;
   }
 
   private fireWeapon(time: number): void {

@@ -36,6 +36,14 @@ body {
   box-sizing: border-box;
 }
 
+@supports (height: 100lvh) {
+  body,
+  #game-root {
+    min-height: 100lvh;
+    height: 100lvh;
+  }
+}
+
 canvas {
   display: block;
   margin: 0 auto;
