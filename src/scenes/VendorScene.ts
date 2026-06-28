@@ -24,7 +24,34 @@ export class VendorScene extends Phaser.Scene {
       color: "#ffd166"
     });
     const chipsText = this.add.text(178, 174, `Microchips: ${run.chips}`, { fontSize: "20px", color: "#63f7b4" });
+    const feedbackText = this.add.text(178, 200, "", { fontSize: "17px", color: "#ff5f73" });
     this.add.text(176, 588, "Esc: return to dungeon", { fontSize: "17px", color: "#9fb8c9" });
+    let feedbackTween: Phaser.Tweens.Tween | undefined;
+
+    const showInsufficientFunds = (
+      row: Phaser.GameObjects.Rectangle,
+      button: Phaser.GameObjects.Rectangle,
+      missingChips: number
+    ): void => {
+      feedbackTween?.stop();
+      feedbackText.setAlpha(1).setText(`Not enough microchips. Need ${missingChips} more.`);
+      feedbackTween = this.tweens.add({
+        targets: feedbackText,
+        alpha: 0.35,
+        duration: 90,
+        yoyo: true,
+        repeat: 2,
+        onComplete: () => feedbackText.setAlpha(1)
+      });
+      row.setStrokeStyle(2, 0xff5f73, 1);
+      button.setFillStyle(0x5a2130);
+      button.setStrokeStyle(2, 0xff5f73, 1);
+      this.time.delayedCall(320, () => {
+        row.setStrokeStyle(1, 0x2d4961, 1);
+        button.setFillStyle(0x20344b);
+        button.setStrokeStyle(1, 0x54d6ff, 0.7);
+      });
+    };
 
     inventory.forEach((id, index) => {
       const item = itemById(id);
@@ -43,7 +70,10 @@ export class VendorScene extends Phaser.Scene {
       this.add.text(718, y + 9, label, { fontSize: "17px", color: "#e8f6ff" });
       if (!purchased) {
         const buyItem = (): void => {
-          if (run.chips < item.price) return;
+          if (run.chips < item.price) {
+            showInsufficientFunds(row, button, item.price - run.chips);
+            return;
+          }
           run.chips -= item.price;
           if (item.kind !== "repair") {
             run.purchasedItemIds.push(item.id);
