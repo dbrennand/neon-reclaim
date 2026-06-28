@@ -22,6 +22,8 @@ Play Neon Reclaim at [neonreclaim.games.dbren.uk](https://neonreclaim.games.dbre
 
 ## Controls
 
+### Desktop
+
 | Input               | Action                                      |
 | ------------------- | ------------------------------------------- |
 | `W`, `A`, `S`, `D`  | Move                                        |
@@ -31,6 +33,20 @@ Play Neon Reclaim at [neonreclaim.games.dbren.uk](https://neonreclaim.games.dbre
 | `P`                 | Pause                                       |
 | `M`                 | Mute or unmute audio                        |
 | `Esc` / `Backspace` | Leave upgrade, vendor, and settings screens |
+
+### Mobile
+
+Neon Reclaim is designed for landscape play on touch devices.
+
+| Input               | Action                                      |
+| ------------------- | ------------------------------------------- |
+| Left virtual stick  | Move                                        |
+| Right virtual stick | Aim and fire                                |
+| Dodge button        | Dodge                                       |
+| Use button          | Interact                                    |
+| Pause button        | Pause or resume                             |
+| Mute button         | Mute or unmute audio                        |
+| On-screen buttons   | Leave vendor, upgrade, and settings screens |
 
 ## Tech Stack
 

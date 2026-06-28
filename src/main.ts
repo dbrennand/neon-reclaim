@@ -15,10 +15,16 @@ const config: Phaser.Types.Core.GameConfig = {
   backgroundColor: "#07090f",
   pixelArt: true,
   scale: {
-    mode: Phaser.Scale.FIT,
+    mode: Phaser.Scale.EXPAND,
     autoCenter: Phaser.Scale.CENTER_BOTH,
     width: 1024,
     height: 704
+  },
+  input: {
+    activePointers: 4,
+    touch: {
+      capture: true
+    }
   },
   physics: {
     default: "arcade",

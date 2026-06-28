@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { centerFixedLayout } from "../layout";
 
 interface EndPayload {
   chipsCarried: number;
@@ -16,6 +17,7 @@ export class VictoryScene extends Phaser.Scene {
   }
 
   create(payload: EndPayload): void {
+    centerFixedLayout(this);
     this.add.rectangle(512, 352, 1024, 704, 0x07100d);
     this.add.text(122, 112, "THE CITY IS BACK ONLINE", {
       fontFamily: "Arial Black",

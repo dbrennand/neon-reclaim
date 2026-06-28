@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { dungeons, itemById, vendorInventories } from "../data";
+import { centerFixedLayout } from "../layout";
 import { currentRun } from "../state";
 
 export class VendorScene extends Phaser.Scene {
@@ -8,6 +9,7 @@ export class VendorScene extends Phaser.Scene {
   }
 
   create(): void {
+    centerFixedLayout(this);
     const run = currentRun;
     if (!run) {
       this.scene.stop();
@@ -25,8 +27,14 @@ export class VendorScene extends Phaser.Scene {
     });
     const chipsText = this.add.text(178, 174, `Microchips: ${run.chips}`, { fontSize: "20px", color: "#63f7b4" });
     const feedbackText = this.add.text(178, 200, "", { fontSize: "17px", color: "#ff5f73" });
-    this.add.text(176, 588, "Esc: return to dungeon", { fontSize: "17px", color: "#9fb8c9" });
     let feedbackTween: Phaser.Tweens.Tween | undefined;
+
+    const returnToDungeon = (): void => {
+      shade.destroy();
+      panel.destroy();
+      this.scene.stop();
+      this.scene.resume("GameScene");
+    };
 
     const showInsufficientFunds = (
       row: Phaser.GameObjects.Rectangle,
@@ -102,11 +110,16 @@ export class VendorScene extends Phaser.Scene {
       }
     });
 
-    this.input.keyboard?.once("keydown-ESC", () => {
-      shade.destroy();
-      panel.destroy();
-      this.scene.stop();
-      this.scene.resume("GameScene");
-    });
+    this.button(176, 570, "Return to Dungeon", returnToDungeon);
+    this.input.keyboard?.once("keydown-ESC", returnToDungeon);
+  }
+
+  private button(x: number, y: number, label: string, onClick: () => void): void {
+    const bg = this.add.rectangle(x, y, 220, 42, 0x172536).setOrigin(0, 0).setStrokeStyle(2, 0xffd166, 0.7);
+    this.add.text(x + 16, y + 10, label, { fontSize: "18px", color: "#e8f6ff" });
+    bg.setInteractive({ useHandCursor: true })
+      .on("pointerover", () => bg.setFillStyle(0x20344b))
+      .on("pointerout", () => bg.setFillStyle(0x172536))
+      .on("pointerdown", onClick);
   }
 }

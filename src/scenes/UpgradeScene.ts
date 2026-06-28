@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { metaUpgrades } from "../data";
+import { centerFixedLayout } from "../layout";
 import { loadSave, saveGame } from "../save";
 
 export class UpgradeScene extends Phaser.Scene {
@@ -8,6 +9,7 @@ export class UpgradeScene extends Phaser.Scene {
   }
 
   create(): void {
+    centerFixedLayout(this);
     const save = loadSave();
     this.add.rectangle(512, 352, 1024, 704, 0x080c13);
     this.add.text(74, 54, "Permanent Upgrades", {
@@ -53,8 +55,17 @@ export class UpgradeScene extends Phaser.Scene {
       text.setDepth(1);
     });
 
-    this.add.text(76, 632, "Esc / Backspace: Main Menu", { fontSize: "18px", color: "#9fb8c9" });
+    this.button(76, 624, "Back to Menu", () => this.scene.start("MainMenuScene"));
     this.input.keyboard?.once("keydown-ESC", () => this.scene.start("MainMenuScene"));
     this.input.keyboard?.once("keydown-BACKSPACE", () => this.scene.start("MainMenuScene"));
+  }
+
+  private button(x: number, y: number, label: string, onClick: () => void): void {
+    const bg = this.add.rectangle(x, y, 190, 46, 0x172536).setOrigin(0, 0).setStrokeStyle(2, 0x54d6ff, 0.65);
+    this.add.text(x + 18, y + 11, label, { fontSize: "20px", color: "#e8f6ff" });
+    bg.setInteractive({ useHandCursor: true })
+      .on("pointerover", () => bg.setFillStyle(0x20344b))
+      .on("pointerout", () => bg.setFillStyle(0x172536))
+      .on("pointerdown", onClick);
   }
 }

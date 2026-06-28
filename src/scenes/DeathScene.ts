@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { centerFixedLayout } from "../layout";
 
 interface EndPayload {
   chipsCarried: number;
@@ -17,6 +18,7 @@ export class DeathScene extends Phaser.Scene {
   }
 
   create(payload: EndPayload): void {
+    centerFixedLayout(this);
     this.add.rectangle(512, 352, 1024, 704, 0x07090f);
     this.add.text(154, 118, "RUN TERMINATED", {
       fontFamily: "Arial Black",
