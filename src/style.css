@@ -24,24 +24,18 @@ body,
 }
 
 body {
-  min-height: 100dvh;
+  min-height: var(--app-height, 100dvh);
+  height: var(--app-height, 100dvh);
   position: fixed;
   inset: 0;
 }
 
 #game-root {
-  min-height: 100dvh;
-  height: 100dvh;
+  min-height: var(--app-height, 100dvh);
+  height: var(--app-height, 100dvh);
+  width: var(--app-width, 100vw);
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   box-sizing: border-box;
-}
-
-@supports (height: 100lvh) {
-  body,
-  #game-root {
-    min-height: 100lvh;
-    height: 100lvh;
-  }
 }
 
 canvas {

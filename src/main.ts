@@ -9,6 +9,21 @@ import { UpgradeScene } from "./scenes/UpgradeScene";
 import { VendorScene } from "./scenes/VendorScene";
 import { VictoryScene } from "./scenes/VictoryScene";
 
+const syncViewportSize = (): void => {
+  const viewport = window.visualViewport;
+  const width = viewport?.width ?? window.innerWidth;
+  const height = viewport?.height ?? window.innerHeight;
+
+  document.documentElement.style.setProperty("--app-width", `${width}px`);
+  document.documentElement.style.setProperty("--app-height", `${height}px`);
+};
+
+syncViewportSize();
+window.addEventListener("resize", syncViewportSize);
+window.addEventListener("orientationchange", () => window.setTimeout(syncViewportSize, 250));
+window.visualViewport?.addEventListener("resize", syncViewportSize);
+window.visualViewport?.addEventListener("scroll", syncViewportSize);
+
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: "game-root",

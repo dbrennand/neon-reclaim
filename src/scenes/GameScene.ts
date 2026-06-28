@@ -77,6 +77,11 @@ const DODGE_SPEED_MULTIPLIER = 3.3;
 const HINT_TEXT_Y = 684;
 const TOUCH_STICK_RADIUS = 58;
 const TOUCH_STICK_DEAD_ZONE = 0.18;
+const TOUCH_STICK_SIDE_INSET = 108;
+const TOUCH_STICK_BOTTOM_INSET = 96;
+const TOUCH_BUTTON_EDGE_INSET = 58;
+const TOUCH_BUTTON_GAP = 84;
+const TOUCH_ACTION_BUTTON_GAP = 122;
 
 export class GameScene extends Phaser.Scene {
   private run!: RunState;
@@ -793,8 +798,14 @@ export class GameScene extends Phaser.Scene {
     this.layoutTouchControls();
     const layoutTouchControls = (): void => this.layoutTouchControls();
     this.scale.on(Phaser.Scale.Events.RESIZE, layoutTouchControls);
+    window.addEventListener("resize", layoutTouchControls);
+    window.visualViewport?.addEventListener("resize", layoutTouchControls);
+    window.visualViewport?.addEventListener("scroll", layoutTouchControls);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, layoutTouchControls);
+      window.removeEventListener("resize", layoutTouchControls);
+      window.visualViewport?.removeEventListener("resize", layoutTouchControls);
+      window.visualViewport?.removeEventListener("scroll", layoutTouchControls);
     });
   }
 
@@ -841,27 +852,104 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    const bounds = this.visibleCanvasBounds();
+    const left = bounds.left;
+    const right = bounds.right;
+    const top = bounds.top;
+    const bottom = bounds.bottom;
+    const minControlX = left + TOUCH_STICK_RADIUS + 18;
+    const maxControlX = right - TOUCH_STICK_RADIUS - 18;
+    const stickY = this.clampTouchControlPosition(
+      bottom - TOUCH_STICK_BOTTOM_INSET,
+      top + TOUCH_STICK_RADIUS + 18,
+      bottom - TOUCH_STICK_BOTTOM_INSET
+    );
+    const moveX = this.clampTouchControlPosition(left + TOUCH_STICK_SIDE_INSET, minControlX, maxControlX);
+    const aimX = this.clampTouchControlPosition(right - TOUCH_STICK_SIDE_INSET, minControlX, maxControlX);
+    this.placeTouchStick(this.moveStick, moveX, stickY);
+    this.placeTouchStick(this.aimStick, aimX, stickY);
+
+    const topButtonY = this.clampTouchControlPosition(
+      top + TOUCH_BUTTON_EDGE_INSET,
+      top + TOUCH_BUTTON_EDGE_INSET,
+      bottom - TOUCH_BUTTON_EDGE_INSET
+    );
+    const actionButtonY = this.clampTouchControlPosition(
+      stickY - TOUCH_ACTION_BUTTON_GAP,
+      top + TOUCH_BUTTON_EDGE_INSET,
+      bottom - TOUCH_BUTTON_EDGE_INSET
+    );
+    const rightButtonX = this.clampTouchControlPosition(
+      right - TOUCH_BUTTON_EDGE_INSET,
+      left + TOUCH_BUTTON_EDGE_INSET,
+      right - TOUCH_BUTTON_EDGE_INSET
+    );
+    const leftButtonX = this.clampTouchControlPosition(
+      rightButtonX - TOUCH_BUTTON_GAP,
+      left + TOUCH_BUTTON_EDGE_INSET,
+      right - TOUCH_BUTTON_EDGE_INSET
+    );
+
+    this.touchButtons.forEach((button) => {
+      switch (button.action) {
+        case "pause":
+          button.container.setPosition(rightButtonX, topButtonY);
+          break;
+        case "mute":
+          button.container.setPosition(leftButtonX, topButtonY);
+          break;
+        case "dodge":
+          button.container.setPosition(rightButtonX, actionButtonY);
+          break;
+        case "interact":
+          button.container.setPosition(leftButtonX, actionButtonY);
+          break;
+      }
+    });
+  }
+
+  private visibleCanvasBounds(): Phaser.Geom.Rectangle {
     const width = this.scale.gameSize.width;
     const height = this.scale.gameSize.height;
-    const bottom = Math.max(104, height - 104);
-    this.placeTouchStick(this.moveStick, 108, bottom);
-    this.placeTouchStick(this.aimStick, width - 118, bottom);
+    const canvasBounds = this.sys.game.canvas.getBoundingClientRect();
+    const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
 
-    const buttonY = Math.max(104, height - 230);
-    const buttonX = width - 78;
-    this.touchButtons.forEach((button, index) => {
-      if (button.action === "mute" || button.action === "pause") {
-        button.container.setPosition(width - 48 - index * 82, 44);
-        return;
-      }
-      button.container.setPosition(buttonX - index * 84, buttonY);
-    });
+    if (canvasBounds.width <= 0 || canvasBounds.height <= 0 || viewportWidth <= 0 || viewportHeight <= 0) {
+      return new Phaser.Geom.Rectangle(0, 0, width, height);
+    }
+
+    const visibleLeft = Math.max(canvasBounds.left, 0);
+    const visibleTop = Math.max(canvasBounds.top, 0);
+    const visibleRight = Math.min(canvasBounds.right, viewportWidth);
+    const visibleBottom = Math.min(canvasBounds.bottom, viewportHeight);
+
+    if (visibleRight <= visibleLeft || visibleBottom <= visibleTop) {
+      return new Phaser.Geom.Rectangle(0, 0, width, height);
+    }
+
+    const scaleX = width / canvasBounds.width;
+    const scaleY = height / canvasBounds.height;
+
+    return new Phaser.Geom.Rectangle(
+      (visibleLeft - canvasBounds.left) * scaleX,
+      (visibleTop - canvasBounds.top) * scaleY,
+      (visibleRight - visibleLeft) * scaleX,
+      (visibleBottom - visibleTop) * scaleY
+    );
+  }
+
+  private clampTouchControlPosition(value: number, min: number, max: number): number {
+    if (max < min) {
+      return (min + max) / 2;
+    }
+    return Phaser.Math.Clamp(value, min, max);
   }
 
   private placeTouchStick(stick: TouchStick, x: number, y: number): void {
     stick.origin.set(x, y);
     stick.base.setPosition(x, y);
-    stick.label.setPosition(x, y + TOUCH_STICK_RADIUS + 18);
+    stick.label.setPosition(x, y + TOUCH_STICK_RADIUS - 12);
     this.updateTouchStickKnob(stick);
   }
 
