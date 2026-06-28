@@ -444,22 +444,6 @@ export class GameScene extends Phaser.Scene {
       case "combat":
         this.drawCornerWarnings(palette.warning, 0.26);
         break;
-      case "hazard":
-        this.drawCornerWarnings(palette.warning, 0.42);
-        this.add
-          .rectangle(ROOM_CENTER_X, ROOM_CENTER_Y, 308, 156, palette.warning, 0.06)
-          .setStrokeStyle(2, palette.warning, 0.2)
-          .setDepth(-18)
-          .setData("roomArt", true);
-        break;
-      case "loot":
-        this.add
-          .rectangle(ROOM_CENTER_X, 350, 190, 116, palette.prop, 0.12)
-          .setStrokeStyle(2, palette.prop, 0.32)
-          .setDepth(-18)
-          .setData("roomArt", true);
-        this.add.rectangle(ROOM_CENTER_X, 350, 120, 54, palette.accent, 0.08).setDepth(-17).setData("roomArt", true);
-        break;
     }
   }
 
