@@ -53,6 +53,7 @@ interface TouchStick {
 
 interface TouchButton {
   container: Phaser.GameObjects.Container;
+  hit: Phaser.GameObjects.Arc;
   bg: Phaser.GameObjects.Arc;
   label: Phaser.GameObjects.Text;
   action: TouchAction;
@@ -75,13 +76,16 @@ const BASE_PLAYER_SPEED = 210;
 const MIN_PLAYER_SPEED = 120;
 const DODGE_SPEED_MULTIPLIER = 3.3;
 const HINT_TEXT_Y = 684;
-const TOUCH_STICK_RADIUS = 58;
+const TOUCH_STICK_RADIUS = 74;
+const TOUCH_STICK_HIT_RADIUS = 128;
 const TOUCH_STICK_DEAD_ZONE = 0.18;
-const TOUCH_STICK_SIDE_INSET = 108;
-const TOUCH_STICK_BOTTOM_INSET = 96;
-const TOUCH_BUTTON_EDGE_INSET = 58;
-const TOUCH_BUTTON_GAP = 84;
-const TOUCH_ACTION_BUTTON_GAP = 122;
+const TOUCH_STICK_SIDE_INSET = 124;
+const TOUCH_STICK_BOTTOM_INSET = 104;
+const TOUCH_BUTTON_RADIUS = 42;
+const TOUCH_BUTTON_HIT_RADIUS = 58;
+const TOUCH_BUTTON_EDGE_INSET = 70;
+const TOUCH_BUTTON_GAP = 98;
+const TOUCH_ACTION_BUTTON_GAP = 204;
 
 export class GameScene extends Phaser.Scene {
   private run!: RunState;
@@ -811,7 +815,7 @@ export class GameScene extends Phaser.Scene {
 
   private createTouchStick(label: string): TouchStick {
     const base = this.add.circle(0, 0, TOUCH_STICK_RADIUS, 0x101721, 0.48).setStrokeStyle(3, 0x54d6ff, 0.45);
-    const knob = this.add.circle(0, 0, 22, 0x54d6ff, 0.55).setStrokeStyle(2, 0xe8f6ff, 0.55);
+    const knob = this.add.circle(0, 0, 28, 0x54d6ff, 0.58).setStrokeStyle(2, 0xe8f6ff, 0.58);
     const text = this.add
       .text(0, 0, label, { fontSize: "13px", color: "#cfe8f5", fontStyle: "bold" })
       .setOrigin(0.5, 0.5);
@@ -829,22 +833,47 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createTouchButton(label: string, action: TouchAction): TouchButton {
-    const container = this.add.container(0, 0).setScrollFactor(0);
-    const bg = this.add.circle(0, 0, 35, 0x172536, 0.68).setStrokeStyle(2, 0x54d6ff, 0.7);
+    const container = this.add.container(0, 0).setScrollFactor(0).setData("touchControl", true);
+    const hit = this.add.circle(0, 0, TOUCH_BUTTON_HIT_RADIUS, 0x000000, 0.01).setData("touchControl", true);
+    const bg = this.add
+      .circle(0, 0, TOUCH_BUTTON_RADIUS, 0x172536, 0.72)
+      .setStrokeStyle(3, 0x54d6ff, 0.78)
+      .setData("touchControl", true);
     const text = this.add
       .text(0, 0, label, { fontSize: "12px", color: "#e8f6ff", fontStyle: "bold" })
-      .setOrigin(0.5, 0.5);
+      .setOrigin(0.5, 0.5)
+      .setData("touchControl", true);
+    const press = (
+      _pointer: Phaser.Input.Pointer,
+      _localX: number,
+      _localY: number,
+      event: Phaser.Types.Input.EventData
+    ): void => {
+      event.cancelled = true;
+      this.handleTouchAction(action);
+    };
 
-    bg.setInteractive({ useHandCursor: true })
-      .setData("touchControl", true)
-      .on("pointerover", () => bg.setFillStyle(0x20344b, 0.82))
-      .on("pointerout", () => bg.setFillStyle(0x172536, 0.68))
-      .on("pointerdown", () => {
-        this.handleTouchAction(action);
-      });
+    [hit, bg].forEach((target) => {
+      target
+        .setInteractive({ useHandCursor: true })
+        .on("pointerover", () => bg.setFillStyle(0x20344b, 0.86))
+        .on("pointerout", () => bg.setFillStyle(0x172536, 0.72))
+        .on("pointerdown", press);
+    });
 
-    container.add([bg, text]);
-    return { container, bg, label: text, action };
+    container
+      .setSize(TOUCH_BUTTON_HIT_RADIUS * 2, TOUCH_BUTTON_HIT_RADIUS * 2)
+      .setInteractive({ useHandCursor: true })
+      .on(
+        "pointerdown",
+        (_pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: Phaser.Types.Input.EventData) => {
+          event.cancelled = true;
+          this.handleTouchAction(action);
+        }
+      );
+
+    container.add([hit, bg, text]);
+    return { container, hit, bg, label: text, action };
   }
 
   private layoutTouchControls(): void {
@@ -1061,7 +1090,7 @@ export class GameScene extends Phaser.Scene {
 
   private isInsideStick(pointer: Phaser.Input.Pointer, stick: TouchStick): boolean {
     const point = this.touchPoint(pointer, stick);
-    return Phaser.Math.Distance.Between(point.x, point.y, stick.origin.x, stick.origin.y) <= TOUCH_STICK_RADIUS + 38;
+    return Phaser.Math.Distance.Between(point.x, point.y, stick.origin.x, stick.origin.y) <= TOUCH_STICK_HIT_RADIUS;
   }
 
   private isTouchControlObject(objects: Phaser.GameObjects.GameObject[]): boolean {

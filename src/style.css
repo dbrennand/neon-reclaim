@@ -33,8 +33,8 @@ body {
 #game-root {
   min-height: var(--app-height, 100dvh);
   height: var(--app-height, 100dvh);
-  width: var(--app-width, 100vw);
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  width: 100vw;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
   box-sizing: border-box;
 }
 

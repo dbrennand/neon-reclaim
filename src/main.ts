@@ -11,10 +11,8 @@ import { VictoryScene } from "./scenes/VictoryScene";
 
 const syncViewportSize = (): void => {
   const viewport = window.visualViewport;
-  const width = viewport?.width ?? window.innerWidth;
   const height = viewport?.height ?? window.innerHeight;
 
-  document.documentElement.style.setProperty("--app-width", `${width}px`);
   document.documentElement.style.setProperty("--app-height", `${height}px`);
 };
 
