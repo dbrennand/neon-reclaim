@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { centerFixedLayout } from "../layout";
 import { loadSave, resetSave, saveGame } from "../save";
 import { setCurrentSave } from "../state";
 
@@ -10,6 +11,7 @@ export class SettingsScene extends Phaser.Scene {
   }
 
   create(): void {
+    centerFixedLayout(this);
     const save = loadSave();
     setCurrentSave(save);
     this.sound.mute = save.muted;
@@ -26,20 +28,22 @@ export class SettingsScene extends Phaser.Scene {
     [
       ["W, A, S, D", "Move"],
       ["Mouse click", "Aim and fire"],
+      ["Left stick", "Move on touch"],
+      ["Right stick", "Aim and fire on touch"],
       ["Space", "Dodge"],
       ["E", "Interact"],
       ["P", "Pause"],
       ["M", "Mute or unmute audio"],
-      ["Esc / Backspace", "Leave screens"]
+      ["Esc / Backspace", "Leave desktop screens"]
     ].forEach(([input, action], index) => {
-      const y = 210 + index * 34;
+      const y = 202 + index * 32;
       this.add.text(98, y, input, {
-        fontSize: "19px",
+        fontSize: "18px",
         color: "#e8f6ff",
         fixedWidth: 210
       });
       this.add.text(318, y, action, {
-        fontSize: "19px",
+        fontSize: "18px",
         color: "#e8f6ff",
         fixedWidth: 230
       });

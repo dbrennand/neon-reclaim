@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { dungeons } from "../data";
+import { centerFixedLayout } from "../layout";
 import { loadSave, saveGame } from "../save";
 import { setCurrentSave, startNewRun } from "../state";
 
@@ -9,6 +10,7 @@ export class MainMenuScene extends Phaser.Scene {
   }
 
   create(): void {
+    centerFixedLayout(this);
     const save = loadSave();
     setCurrentSave(save);
     this.sound.mute = save.muted;
@@ -42,12 +44,24 @@ export class MainMenuScene extends Phaser.Scene {
     this.button(96, 392, "Permanent Upgrades", () => this.scene.start("UpgradeScene"));
     this.button(96, 454, "Settings", () => this.scene.start("SettingsScene"));
 
-    this.add.text(610, 278, "Controls", { fontSize: "24px", color: "#ffd166" });
-    this.add.text(610, 322, "WASD move\nMouse aim and fire\nSpace dodge\nE interact\nP pause\nM mute", {
-      fontSize: "20px",
+    this.add.text(610, 252, "Controls", { fontSize: "24px", color: "#ffd166" });
+    this.add.text(610, 296, "Desktop\nWASD move\nMouse aim and fire\nSpace dodge\nE interact", {
+      fontSize: "18px",
       lineSpacing: 12,
       color: "#e8f6ff"
     });
+    this.add.text(
+      610,
+      488,
+      "Mobile\nLeft stick move\nRight stick aim and fire\nTouch buttons dodge, use, pause, mute",
+      {
+        fontSize: "17px",
+        lineSpacing: 10,
+        color: "#cfe8f5",
+        fixedWidth: 250,
+        wordWrap: { width: 250 }
+      }
+    );
   }
 
   private button(x: number, y: number, label: string, onClick: () => void): void {

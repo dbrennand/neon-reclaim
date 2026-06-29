@@ -1,6 +1,6 @@
 {
   "name": "neon-reclaim",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Neon Reclaim, a browser-based sci-fi dungeon crawler.",
   "private": true,
   "type": "module",

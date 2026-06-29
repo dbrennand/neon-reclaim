@@ -163,6 +163,18 @@ Use this flow after gameplay or scene changes:
 10. Toggle mute with `M`.
 11. Refresh the browser and confirm save data loads as expected.
 
+For mobile or touch-control changes, also run a landscape phone-sized smoke test:
+
+1. Open the local Vite URL in a mobile browser or desktop browser device emulation.
+2. Start a run from the main menu.
+3. Move with the left virtual stick.
+4. Aim and fire with the right virtual stick.
+5. Dodge with the on-screen dodge button.
+6. Interact with a vendor using the on-screen use button.
+7. Return from vendor, upgrade, and settings screens using visible on-screen buttons.
+8. Toggle pause and mute with the on-screen buttons.
+9. Confirm the page does not scroll, zoom, or select text during play.
+
 ## Coding Guidelines
 
 - Keep TypeScript strictness intact. Do not loosen `tsconfig.json` to bypass errors.

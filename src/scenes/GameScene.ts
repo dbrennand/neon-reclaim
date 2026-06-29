@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { bossById, dungeons, enemyById, weaponById } from "../data";
 import { getAdjacentRooms, Rng } from "../dungeon";
+import { centerFixedLayout, expandedViewport } from "../layout";
 import { loadSave, saveGame } from "../save";
 import { advanceDungeon, currentRun, currentSave, endRun, setCurrentSave, startNewRun } from "../state";
 import type {
@@ -37,6 +38,31 @@ interface RoomPalette {
   warning: number;
 }
 
+type TouchAction = "dodge" | "interact" | "pause" | "mute";
+type InputEventData = Phaser.Types.Input.EventData & { stopPropagation: () => void };
+
+interface TouchStick {
+  base: Phaser.GameObjects.Arc;
+  knob: Phaser.GameObjects.Arc;
+  label: Phaser.GameObjects.Text;
+  pointer?: Phaser.Input.Pointer;
+  origin: Phaser.Math.Vector2;
+  vector: Phaser.Math.Vector2;
+}
+
+interface TouchPointerIdentity {
+  pointerId?: number;
+  pointerIdentifier?: number;
+}
+
+interface TouchButton {
+  container: Phaser.GameObjects.Container;
+  hit: Phaser.GameObjects.Arc;
+  bg: Phaser.GameObjects.Arc;
+  label: Phaser.GameObjects.Text;
+  action: TouchAction;
+}
+
 const EXIT_LEFT = 62;
 const EXIT_RIGHT = 962;
 const EXIT_TOP = 112;
@@ -54,6 +80,17 @@ const BASE_PLAYER_SPEED = 210;
 const MIN_PLAYER_SPEED = 120;
 const DODGE_SPEED_MULTIPLIER = 3.3;
 const HINT_TEXT_Y = 684;
+const TOUCH_STICK_RADIUS = 128;
+const TOUCH_STICK_HIT_RADIUS = 220;
+const TOUCH_STICK_DEAD_ZONE = 0.18;
+const TOUCH_STICK_SIDE_INSET = 220;
+const TOUCH_STICK_BOTTOM_INSET = 154;
+const TOUCH_BUTTON_RADIUS = 52;
+const TOUCH_BUTTON_HIT_RADIUS = 74;
+const TOUCH_BUTTON_EDGE_INSET = 84;
+const TOUCH_BUTTON_GAP = 122;
+const TOUCH_ACTION_BUTTON_GAP = 224;
+const TOUCH_MOVE_GRACE_MS = 180;
 
 export class GameScene extends Phaser.Scene {
   private run!: RunState;
@@ -86,12 +123,24 @@ export class GameScene extends Phaser.Scene {
   private musicEvent?: Phaser.Time.TimerEvent;
   private musicStarted = false;
   private musicStep = 0;
+  private touchControls?: Phaser.GameObjects.Container;
+  private moveStick?: TouchStick;
+  private aimStick?: TouchStick;
+  private touchButtons: TouchButton[] = [];
+  private touchAimActive = false;
+  private lastAimDirection = new Phaser.Math.Vector2(1, 0);
+  private lastTouchMoveDirection = new Phaser.Math.Vector2(0, 0);
+  private lastTouchMoveAt = -9999;
+  private activeTouchButtonPointers: TouchPointerIdentity[] = [];
+  private touchDodgeQueued = false;
+  private touchInteractQueued = false;
 
   constructor() {
     super("GameScene");
   }
 
   create(): void {
+    centerFixedLayout(this);
     this.save = currentSave ?? loadSave();
     setCurrentSave(this.save);
     this.run = currentRun ?? startNewRun(this.save);
@@ -112,27 +161,21 @@ export class GameScene extends Phaser.Scene {
     this.syncPlayerLoadout();
 
     this.keys = this.input.keyboard!.addKeys("W,A,S,D,SPACE,E,P,M") as Keys;
-    this.input.on("pointerdown", () => {
-      if (this.paused) {
-        return;
-      }
+    this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, objects: Phaser.GameObjects.GameObject[]) => {
       this.ensureAudio();
-      this.fireWeapon(this.time.now);
+      this.handleTouchPointerDown(pointer, objects);
     });
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleTouchPointerMove(pointer));
+    this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => this.handleTouchPointerUp(pointer));
+    this.input.on("pointerupoutside", (pointer: Phaser.Input.Pointer) => this.handleTouchPointerUp(pointer));
+    this.input.on(Phaser.Input.Events.GAME_OUT, () => this.releaseAllTouchControls());
     this.input.keyboard?.on("keydown", () => this.ensureAudio());
     this.input.keyboard?.on("keydown-P", () => this.togglePause());
-    this.input.keyboard?.on("keydown-M", () => {
-      this.save.muted = !this.save.muted;
-      this.sound.mute = this.save.muted;
-      this.updateAudioMute();
-      if (!this.save.muted) {
-        this.ensureAudio();
-      }
-      saveGame(this.save);
-    });
+    this.input.keyboard?.on("keydown-M", () => this.toggleMute());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopAudio());
 
     this.createHud();
+    this.createTouchControls();
     this.physics.add.overlap(this.playerBullets, this.enemiesGroup, (projectile, enemy) =>
       this.hitEnemy(projectile, enemy)
     );
@@ -597,7 +640,7 @@ export class GameScene extends Phaser.Scene {
     if (room.type === "vendor") {
       this.vendorSprite = this.physics.add.sprite(512, 340, "vendor");
       this.add.text(458, 390, "FIELD VENDOR", { fontSize: "16px", color: "#ffd166" }).setData("roomArt", true);
-      this.hintText.setText("Press E near the vendor to spend microchips.");
+      this.hintText.setText("Press E or tap USE near the vendor to spend microchips.");
       return;
     }
 
@@ -677,14 +720,8 @@ export class GameScene extends Phaser.Scene {
   private updatePlayer(time: number): void {
     this.syncPlayerLoadout();
     const speed = this.playerMoveSpeed();
-    const direction = new Phaser.Math.Vector2(0, 0);
-    if (this.keys.A.isDown) direction.x -= 1;
-    if (this.keys.D.isDown) direction.x += 1;
-    if (this.keys.W.isDown) direction.y -= 1;
-    if (this.keys.S.isDown) direction.y += 1;
-    if (direction.lengthSq() > 0) {
-      direction.normalize();
-    }
+    this.updateTouchControls();
+    const direction = this.getMovementDirection();
 
     const dodging = time < this.dodgeReadyAt - 620;
     const currentSpeed = dodging ? speed * 2.2 : speed;
@@ -693,11 +730,13 @@ export class GameScene extends Phaser.Scene {
     const aimPoint = this.getAimPoint();
     this.player.rotation =
       Phaser.Math.Angle.Between(this.player.x, this.player.y, aimPoint.x, aimPoint.y) + Math.PI / 2;
-    if (this.input.activePointer.isDown) {
+    if (this.shouldFire()) {
       this.fireWeapon(time);
     }
 
-    if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE) && time > this.dodgeReadyAt && direction.lengthSq() > 0) {
+    const wantsDodge = Phaser.Input.Keyboard.JustDown(this.keys.SPACE) || this.touchDodgeQueued;
+    this.touchDodgeQueued = false;
+    if (wantsDodge && time > this.dodgeReadyAt && direction.lengthSq() > 0) {
       this.player.setVelocity(
         direction.x * speed * DODGE_SPEED_MULTIPLIER,
         direction.y * speed * DODGE_SPEED_MULTIPLIER
@@ -718,6 +757,426 @@ export class GameScene extends Phaser.Scene {
       this.player.setTexture(textureKey);
     }
     this.player.setMaxVelocity(this.playerMoveSpeed() * DODGE_SPEED_MULTIPLIER);
+  }
+
+  private getMovementDirection(): Phaser.Math.Vector2 {
+    const direction = new Phaser.Math.Vector2(0, 0);
+    if (this.keys.A.isDown) direction.x -= 1;
+    if (this.keys.D.isDown) direction.x += 1;
+    if (this.keys.W.isDown) direction.y -= 1;
+    if (this.keys.S.isDown) direction.y += 1;
+
+    if (this.moveStick?.pointer) {
+      direction.add(this.moveStick.vector);
+    }
+
+    if (direction.lengthSq() === 0 && this.time.now - this.lastTouchMoveAt <= TOUCH_MOVE_GRACE_MS) {
+      direction.add(this.lastTouchMoveDirection);
+    }
+
+    if (direction.lengthSq() > 0) {
+      direction.normalize();
+    }
+    return direction;
+  }
+
+  private shouldFire(): boolean {
+    const pointer = this.input.activePointer;
+    const touchFire = this.touchAimActive && !!this.aimStick?.pointer && this.aimStick.vector.lengthSq() > 0;
+    return touchFire || (pointer.isDown && !pointer.wasTouch);
+  }
+
+  private createTouchControls(): void {
+    if (!this.sys.game.device.input.touch) {
+      return;
+    }
+
+    const controls = this.add.container(0, 0).setDepth(900).setScrollFactor(0);
+    this.touchControls = controls;
+    this.moveStick = this.createTouchStick("MOVE");
+    this.aimStick = this.createTouchStick("AIM");
+    this.touchButtons = [
+      this.createTouchButton("DODGE", "dodge"),
+      this.createTouchButton("USE", "interact"),
+      this.createTouchButton("PAUSE", "pause"),
+      this.createTouchButton(this.save.muted ? "SOUND" : "MUTE", "mute")
+    ];
+
+    controls.add([
+      this.moveStick.base,
+      this.moveStick.knob,
+      this.moveStick.label,
+      this.aimStick.base,
+      this.aimStick.knob,
+      this.aimStick.label,
+      ...this.touchButtons.map((button) => button.container)
+    ]);
+    this.layoutTouchControls();
+    const layoutTouchControls = (): void => this.layoutTouchControls();
+    this.scale.on(Phaser.Scale.Events.RESIZE, layoutTouchControls);
+    window.addEventListener("resize", layoutTouchControls);
+    window.visualViewport?.addEventListener("resize", layoutTouchControls);
+    window.visualViewport?.addEventListener("scroll", layoutTouchControls);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off(Phaser.Scale.Events.RESIZE, layoutTouchControls);
+      window.removeEventListener("resize", layoutTouchControls);
+      window.visualViewport?.removeEventListener("resize", layoutTouchControls);
+      window.visualViewport?.removeEventListener("scroll", layoutTouchControls);
+    });
+  }
+
+  private createTouchStick(label: string): TouchStick {
+    const base = this.add.circle(0, 0, TOUCH_STICK_RADIUS, 0x101721, 0.48).setStrokeStyle(3, 0x54d6ff, 0.45);
+    const knob = this.add.circle(0, 0, 50, 0x54d6ff, 0.58).setStrokeStyle(2, 0xe8f6ff, 0.58);
+    const text = this.add
+      .text(0, 0, label, { fontSize: "13px", color: "#cfe8f5", fontStyle: "bold" })
+      .setOrigin(0.5, 0.5);
+    base.setScrollFactor(0);
+    knob.setScrollFactor(0);
+    text.setScrollFactor(0);
+
+    return {
+      base,
+      knob,
+      label: text,
+      origin: new Phaser.Math.Vector2(0, 0),
+      vector: new Phaser.Math.Vector2(0, 0)
+    };
+  }
+
+  private createTouchButton(label: string, action: TouchAction): TouchButton {
+    const container = this.add.container(0, 0).setScrollFactor(0).setData("touchControl", true);
+    const hit = this.add.circle(0, 0, TOUCH_BUTTON_HIT_RADIUS, 0x000000, 0.01).setData("touchControl", true);
+    const bg = this.add
+      .circle(0, 0, TOUCH_BUTTON_RADIUS, 0x172536, 0.72)
+      .setStrokeStyle(3, 0x54d6ff, 0.78)
+      .setData("touchControl", true);
+    const text = this.add
+      .text(0, 0, label, { fontSize: "12px", color: "#e8f6ff", fontStyle: "bold" })
+      .setOrigin(0.5, 0.5)
+      .setData("touchControl", true);
+    const press = (
+      pointer: Phaser.Input.Pointer,
+      _localX: number,
+      _localY: number,
+      event: Phaser.Types.Input.EventData
+    ): void => {
+      event.cancelled = true;
+      this.registerTouchButtonPointer(pointer);
+      this.handleTouchAction(action);
+    };
+
+    [hit, bg].forEach((target) => {
+      target
+        .setInteractive({ useHandCursor: true })
+        .on("pointerover", () => bg.setFillStyle(0x20344b, 0.86))
+        .on("pointerout", () => bg.setFillStyle(0x172536, 0.72))
+        .on("pointerdown", press);
+    });
+
+    container
+      .setSize(TOUCH_BUTTON_HIT_RADIUS * 2, TOUCH_BUTTON_HIT_RADIUS * 2)
+      .setInteractive({ useHandCursor: true })
+      .on(
+        "pointerdown",
+        (pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: Phaser.Types.Input.EventData) => {
+          event.cancelled = true;
+          this.registerTouchButtonPointer(pointer);
+          this.handleTouchAction(action);
+        }
+      );
+
+    container.add([hit, bg, text]);
+    return { container, hit, bg, label: text, action };
+  }
+
+  private layoutTouchControls(): void {
+    if (!this.moveStick || !this.aimStick) {
+      return;
+    }
+
+    const bounds = this.visibleCanvasBounds();
+    const left = bounds.left;
+    const right = bounds.right;
+    const top = bounds.top;
+    const bottom = bounds.bottom;
+    const minControlX = left + TOUCH_STICK_RADIUS + 18;
+    const maxControlX = right - TOUCH_STICK_RADIUS - 18;
+    const stickY = this.clampTouchControlPosition(
+      bottom - TOUCH_STICK_BOTTOM_INSET,
+      top + TOUCH_STICK_RADIUS + 18,
+      bottom - TOUCH_STICK_BOTTOM_INSET
+    );
+    const moveX = this.clampTouchControlPosition(left + TOUCH_STICK_SIDE_INSET, minControlX, maxControlX);
+    const aimX = this.clampTouchControlPosition(right - TOUCH_STICK_SIDE_INSET, minControlX, maxControlX);
+    this.placeTouchStick(this.moveStick, moveX, stickY);
+    this.placeTouchStick(this.aimStick, aimX, stickY);
+
+    const topButtonY = this.clampTouchControlPosition(
+      top + TOUCH_BUTTON_EDGE_INSET,
+      top + TOUCH_BUTTON_EDGE_INSET,
+      bottom - TOUCH_BUTTON_EDGE_INSET
+    );
+    const actionButtonY = this.clampTouchControlPosition(
+      stickY - TOUCH_ACTION_BUTTON_GAP,
+      top + TOUCH_BUTTON_EDGE_INSET,
+      bottom - TOUCH_BUTTON_EDGE_INSET
+    );
+    const rightButtonX = this.clampTouchControlPosition(
+      right - TOUCH_BUTTON_EDGE_INSET,
+      left + TOUCH_BUTTON_EDGE_INSET,
+      right - TOUCH_BUTTON_EDGE_INSET
+    );
+    const leftButtonX = this.clampTouchControlPosition(
+      rightButtonX - TOUCH_BUTTON_GAP,
+      left + TOUCH_BUTTON_EDGE_INSET,
+      right - TOUCH_BUTTON_EDGE_INSET
+    );
+
+    this.touchButtons.forEach((button) => {
+      switch (button.action) {
+        case "pause":
+          button.container.setPosition(rightButtonX, topButtonY);
+          break;
+        case "mute":
+          button.container.setPosition(leftButtonX, topButtonY);
+          break;
+        case "dodge":
+          button.container.setPosition(rightButtonX, actionButtonY);
+          break;
+        case "interact":
+          button.container.setPosition(leftButtonX, actionButtonY);
+          break;
+      }
+    });
+  }
+
+  private visibleCanvasBounds(): Phaser.Geom.Rectangle {
+    const width = this.scale.gameSize.width;
+    const height = this.scale.gameSize.height;
+    const canvasBounds = this.sys.game.canvas.getBoundingClientRect();
+    const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+
+    if (canvasBounds.width <= 0 || canvasBounds.height <= 0 || viewportWidth <= 0 || viewportHeight <= 0) {
+      return new Phaser.Geom.Rectangle(0, 0, width, height);
+    }
+
+    const visibleLeft = Math.max(canvasBounds.left, 0);
+    const visibleTop = Math.max(canvasBounds.top, 0);
+    const visibleRight = Math.min(canvasBounds.right, viewportWidth);
+    const visibleBottom = Math.min(canvasBounds.bottom, viewportHeight);
+
+    if (visibleRight <= visibleLeft || visibleBottom <= visibleTop) {
+      return new Phaser.Geom.Rectangle(0, 0, width, height);
+    }
+
+    const scaleX = width / canvasBounds.width;
+    const scaleY = height / canvasBounds.height;
+
+    return new Phaser.Geom.Rectangle(
+      (visibleLeft - canvasBounds.left) * scaleX,
+      (visibleTop - canvasBounds.top) * scaleY,
+      (visibleRight - visibleLeft) * scaleX,
+      (visibleBottom - visibleTop) * scaleY
+    );
+  }
+
+  private clampTouchControlPosition(value: number, min: number, max: number): number {
+    if (max < min) {
+      return (min + max) / 2;
+    }
+    return Phaser.Math.Clamp(value, min, max);
+  }
+
+  private placeTouchStick(stick: TouchStick, x: number, y: number): void {
+    stick.origin.set(x, y);
+    stick.base.setPosition(x, y);
+    stick.label.setPosition(x, y + TOUCH_STICK_RADIUS - 12);
+    this.updateTouchStickKnob(stick);
+  }
+
+  private updateTouchControls(): void {
+    [this.moveStick, this.aimStick].forEach((stick) => {
+      if (!stick?.pointer) {
+        return;
+      }
+      const pointer = this.findStickPointer(stick);
+      if (!pointer || !pointer.isDown) {
+        this.releaseTouchStick(stick);
+        return;
+      }
+      this.setTouchStickVectorFromPointer(stick, pointer);
+    });
+  }
+
+  private handleTouchPointerDown(pointer: Phaser.Input.Pointer, objects: Phaser.GameObjects.GameObject[] = []): void {
+    if (!pointer.wasTouch) {
+      if (!this.paused) {
+        this.fireWeapon(this.time.now);
+      }
+      return;
+    }
+
+    if (this.paused || this.isTouchControlObject(objects)) {
+      return;
+    }
+    if (this.moveStick && this.isInsideStick(pointer, this.moveStick) && !this.moveStick.pointer) {
+      this.assignTouchPointer(this.moveStick, pointer);
+      this.setTouchStickVectorFromPointer(this.moveStick, pointer);
+      return;
+    }
+    if (this.aimStick && this.isInsideStick(pointer, this.aimStick) && !this.aimStick.pointer) {
+      this.assignTouchPointer(this.aimStick, pointer);
+      this.touchAimActive = true;
+      this.setTouchStickVectorFromPointer(this.aimStick, pointer);
+    }
+  }
+
+  private handleTouchPointerMove(pointer: Phaser.Input.Pointer): void {
+    if (this.moveStick && this.isStickPointer(this.moveStick, pointer)) {
+      this.setTouchStickVectorFromPointer(this.moveStick, pointer);
+    }
+    if (this.aimStick && this.isStickPointer(this.aimStick, pointer)) {
+      this.setTouchStickVectorFromPointer(this.aimStick, pointer);
+    }
+  }
+
+  private handleTouchPointerUp(pointer: Phaser.Input.Pointer): void {
+    if (this.isTouchButtonPointer(pointer)) {
+      this.unregisterTouchButtonPointer(pointer);
+      return;
+    }
+
+    if (this.moveStick && this.isStickPointer(this.moveStick, pointer)) {
+      this.releaseTouchStick(this.moveStick);
+    }
+    if (this.aimStick && this.isStickPointer(this.aimStick, pointer)) {
+      this.releaseTouchStick(this.aimStick);
+      this.touchAimActive = false;
+    }
+  }
+
+  private handleTouchAction(action: TouchAction): void {
+    this.ensureAudio();
+    switch (action) {
+      case "dodge":
+        this.touchDodgeQueued = true;
+        break;
+      case "interact":
+        this.touchInteractQueued = true;
+        break;
+      case "pause":
+        this.togglePause();
+        break;
+      case "mute":
+        this.toggleMute();
+        break;
+    }
+  }
+
+  private setTouchStickVector(stick: TouchStick, x: number, y: number): void {
+    const offset = new Phaser.Math.Vector2(x - stick.origin.x, y - stick.origin.y);
+    const length = offset.length();
+    const clamped = length > TOUCH_STICK_RADIUS ? offset.normalize().scale(TOUCH_STICK_RADIUS) : offset;
+    const normalized = clamped.clone().scale(1 / TOUCH_STICK_RADIUS);
+    stick.vector.set(normalized.x, normalized.y);
+    if (stick.vector.length() < TOUCH_STICK_DEAD_ZONE) {
+      stick.vector.set(0, 0);
+    }
+    if (stick === this.aimStick && stick.vector.lengthSq() > 0) {
+      this.lastAimDirection.copy(stick.vector).normalize();
+    }
+    if (stick === this.moveStick && stick.vector.lengthSq() > 0) {
+      this.lastTouchMoveDirection.copy(stick.vector).normalize();
+      this.lastTouchMoveAt = this.time.now;
+    }
+    this.updateTouchStickKnob(stick, clamped.x, clamped.y);
+  }
+
+  private setTouchStickVectorFromPointer(stick: TouchStick, pointer: Phaser.Input.Pointer): void {
+    const point = this.touchPoint(pointer, stick);
+    this.setTouchStickVector(stick, point.x, point.y);
+  }
+
+  private updateTouchStickKnob(stick: TouchStick, offsetX = 0, offsetY = 0): void {
+    stick.knob.setPosition(stick.origin.x + offsetX, stick.origin.y + offsetY);
+  }
+
+  private releaseTouchStick(stick: TouchStick): void {
+    stick.pointer = undefined;
+    stick.vector.set(0, 0);
+    this.updateTouchStickKnob(stick);
+  }
+
+  private isInsideStick(pointer: Phaser.Input.Pointer, stick: TouchStick): boolean {
+    const point = this.touchPoint(pointer, stick);
+    return Phaser.Math.Distance.Between(point.x, point.y, stick.origin.x, stick.origin.y) <= TOUCH_STICK_HIT_RADIUS;
+  }
+
+  private isTouchControlObject(objects: Phaser.GameObjects.GameObject[]): boolean {
+    return objects.some((object) => object.getData("touchControl"));
+  }
+
+  private assignTouchPointer(stick: TouchStick, pointer: Phaser.Input.Pointer): void {
+    stick.pointer = pointer;
+  }
+
+  private isStickPointer(stick: TouchStick, pointer: Phaser.Input.Pointer): boolean {
+    return stick.pointer === pointer;
+  }
+
+  private registerTouchButtonPointer(pointer: Phaser.Input.Pointer): void {
+    if (this.isTouchButtonPointer(pointer)) {
+      return;
+    }
+    this.activeTouchButtonPointers.push({
+      pointerId: pointer.pointerId,
+      pointerIdentifier: pointer.identifier
+    });
+  }
+
+  private unregisterTouchButtonPointer(pointer: Phaser.Input.Pointer): void {
+    this.activeTouchButtonPointers = this.activeTouchButtonPointers.filter(
+      (identity) => !this.isPointerIdentity(pointer, identity)
+    );
+  }
+
+  private isTouchButtonPointer(pointer: Phaser.Input.Pointer): boolean {
+    return this.activeTouchButtonPointers.some((identity) => this.isPointerIdentity(pointer, identity));
+  }
+
+  private isPointerIdentity(pointer: Phaser.Input.Pointer, identity: TouchPointerIdentity): boolean {
+    return (
+      (identity.pointerId !== undefined && identity.pointerId === pointer.pointerId) ||
+      (identity.pointerIdentifier !== undefined && identity.pointerIdentifier === pointer.identifier)
+    );
+  }
+
+  private findStickPointer(stick: TouchStick): Phaser.Input.Pointer | undefined {
+    if (stick.pointer?.isDown && this.input.manager.pointers.includes(stick.pointer)) {
+      return stick.pointer;
+    }
+    return undefined;
+  }
+
+  private releaseAllTouchControls(): void {
+    if (this.moveStick) {
+      this.releaseTouchStick(this.moveStick);
+    }
+    if (this.aimStick) {
+      this.releaseTouchStick(this.aimStick);
+    }
+    this.touchAimActive = false;
+    this.activeTouchButtonPointers = [];
+  }
+
+  private touchPoint(pointer: Phaser.Input.Pointer, stick: TouchStick): Phaser.Math.Vector2 {
+    const canvasPoint = new Phaser.Math.Vector2(pointer.x, pointer.y);
+    const screenPoint = new Phaser.Math.Vector2(pointer.position.x, pointer.position.y);
+    const canvasDistance = Phaser.Math.Distance.Between(canvasPoint.x, canvasPoint.y, stick.origin.x, stick.origin.y);
+    const screenDistance = Phaser.Math.Distance.Between(screenPoint.x, screenPoint.y, stick.origin.x, stick.origin.y);
+    return screenDistance < canvasDistance ? screenPoint : canvasPoint;
   }
 
   private fireWeapon(time: number): void {
@@ -752,6 +1211,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getAimPoint(): Phaser.Math.Vector2 {
+    if (this.touchAimActive) {
+      return new Phaser.Math.Vector2(
+        this.player.x + this.lastAimDirection.x * 120,
+        this.player.y + this.lastAimDirection.y * 120
+      );
+    }
+
     const pointer = this.input.activePointer;
     const point = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
     if (point instanceof Phaser.Math.Vector2) {
@@ -1280,7 +1746,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleInteraction(): void {
-    if (!Phaser.Input.Keyboard.JustDown(this.keys.E)) {
+    const wantsInteraction = Phaser.Input.Keyboard.JustDown(this.keys.E) || this.touchInteractQueued;
+    this.touchInteractQueued = false;
+    if (!wantsInteraction) {
       return;
     }
     const room = this.currentRoom();
@@ -1292,6 +1760,19 @@ export class GameScene extends Phaser.Scene {
       this.scene.pause("GameScene");
       this.scene.launch("VendorScene");
     }
+  }
+
+  private toggleMute(): void {
+    this.save.muted = !this.save.muted;
+    this.sound.mute = this.save.muted;
+    this.updateAudioMute();
+    if (!this.save.muted) {
+      this.ensureAudio();
+    }
+    saveGame(this.save);
+
+    const muteButton = this.touchButtons.find((button) => button.action === "mute");
+    muteButton?.label.setText(this.save.muted ? "SOUND" : "MUTE");
   }
 
   private ensureAudio(): boolean {
@@ -1555,7 +2036,10 @@ export class GameScene extends Phaser.Scene {
   private showPauseMenu(): void {
     this.hidePauseMenu();
 
-    const shade = this.add.rectangle(512, 352, 1024, 704, 0x03060a, 0.58);
+    const viewport = expandedViewport(this);
+    const shade = this.add
+      .rectangle(viewport.centerX, viewport.centerY, viewport.width, viewport.height, 0x03060a, 0.58)
+      .setInteractive();
     const panel = this.add.rectangle(512, 352, 360, 236, 0x101721, 0.96).setStrokeStyle(2, 0x54d6ff, 0.7);
     const title = this.add
       .text(512, 274, "PAUSED", {
@@ -1582,7 +2066,13 @@ export class GameScene extends Phaser.Scene {
     bg.setInteractive({ useHandCursor: true })
       .on("pointerover", () => bg.setFillStyle(0x20344b))
       .on("pointerout", () => bg.setFillStyle(0x172536))
-      .on("pointerdown", onClick);
+      .on(
+        "pointerdown",
+        (_pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: InputEventData) => {
+          event.stopPropagation();
+          onClick();
+        }
+      );
     container.add([bg, text]);
     return container;
   }
