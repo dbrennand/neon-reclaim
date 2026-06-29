@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { dungeons, itemById, vendorInventories } from "../data";
-import { centerFixedLayout } from "../layout";
+import { centerFixedLayout, expandedViewport } from "../layout";
 import { currentRun } from "../state";
 
 export class VendorScene extends Phaser.Scene {
@@ -18,7 +18,10 @@ export class VendorScene extends Phaser.Scene {
 
     const dungeon = dungeons[run.dungeonIndex];
     const inventory = vendorInventories.find((entry) => entry.dungeonId === dungeon.id)?.items ?? [];
-    const shade = this.add.rectangle(512, 352, 1024, 704, 0x03060a, 0.72);
+    const viewport = expandedViewport(this);
+    const shade = this.add
+      .rectangle(viewport.centerX, viewport.centerY, viewport.width, viewport.height, 0x03060a, 0.72)
+      .setInteractive();
     const panel = this.add.rectangle(512, 352, 760, 520, 0x101721, 0.98).setStrokeStyle(2, 0xffd166, 0.8);
     this.add.text(176, 126, "Field Vendor", {
       fontFamily: "Arial Black",

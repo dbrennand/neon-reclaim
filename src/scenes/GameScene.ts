@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { bossById, dungeons, enemyById, weaponById } from "../data";
 import { getAdjacentRooms, Rng } from "../dungeon";
-import { centerFixedLayout } from "../layout";
+import { centerFixedLayout, expandedViewport } from "../layout";
 import { loadSave, saveGame } from "../save";
 import { advanceDungeon, currentRun, currentSave, endRun, setCurrentSave, startNewRun } from "../state";
 import type {
@@ -39,6 +39,7 @@ interface RoomPalette {
 }
 
 type TouchAction = "dodge" | "interact" | "pause" | "mute";
+type InputEventData = Phaser.Types.Input.EventData & { stopPropagation: () => void };
 
 interface TouchStick {
   base: Phaser.GameObjects.Arc;
@@ -2035,7 +2036,10 @@ export class GameScene extends Phaser.Scene {
   private showPauseMenu(): void {
     this.hidePauseMenu();
 
-    const shade = this.add.rectangle(512, 352, 1024, 704, 0x03060a, 0.58);
+    const viewport = expandedViewport(this);
+    const shade = this.add
+      .rectangle(viewport.centerX, viewport.centerY, viewport.width, viewport.height, 0x03060a, 0.58)
+      .setInteractive();
     const panel = this.add.rectangle(512, 352, 360, 236, 0x101721, 0.96).setStrokeStyle(2, 0x54d6ff, 0.7);
     const title = this.add
       .text(512, 274, "PAUSED", {
@@ -2062,7 +2066,13 @@ export class GameScene extends Phaser.Scene {
     bg.setInteractive({ useHandCursor: true })
       .on("pointerover", () => bg.setFillStyle(0x20344b))
       .on("pointerout", () => bg.setFillStyle(0x172536))
-      .on("pointerdown", onClick);
+      .on(
+        "pointerdown",
+        (_pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: InputEventData) => {
+          event.stopPropagation();
+          onClick();
+        }
+      );
     container.add([bg, text]);
     return container;
   }
