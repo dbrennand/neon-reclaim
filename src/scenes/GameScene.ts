@@ -81,16 +81,16 @@ const BASE_PLAYER_SPEED = 210;
 const MIN_PLAYER_SPEED = 120;
 const DODGE_SPEED_MULTIPLIER = 3.3;
 const HINT_TEXT_Y = 684;
-const TOUCH_STICK_RADIUS = 84;
-const TOUCH_STICK_HIT_RADIUS = 146;
+const TOUCH_STICK_RADIUS = 104;
+const TOUCH_STICK_HIT_RADIUS = 178;
 const TOUCH_STICK_DEAD_ZONE = 0.18;
-const TOUCH_STICK_SIDE_INSET = 138;
-const TOUCH_STICK_BOTTOM_INSET = 116;
-const TOUCH_BUTTON_RADIUS = 42;
-const TOUCH_BUTTON_HIT_RADIUS = 58;
-const TOUCH_BUTTON_EDGE_INSET = 70;
-const TOUCH_BUTTON_GAP = 98;
-const TOUCH_ACTION_BUTTON_GAP = 204;
+const TOUCH_STICK_SIDE_INSET = 172;
+const TOUCH_STICK_BOTTOM_INSET = 130;
+const TOUCH_BUTTON_RADIUS = 52;
+const TOUCH_BUTTON_HIT_RADIUS = 74;
+const TOUCH_BUTTON_EDGE_INSET = 84;
+const TOUCH_BUTTON_GAP = 122;
+const TOUCH_ACTION_BUTTON_GAP = 224;
 const TOUCH_MOVE_GRACE_MS = 180;
 
 export class GameScene extends Phaser.Scene {
@@ -828,7 +828,7 @@ export class GameScene extends Phaser.Scene {
 
   private createTouchStick(label: string): TouchStick {
     const base = this.add.circle(0, 0, TOUCH_STICK_RADIUS, 0x101721, 0.48).setStrokeStyle(3, 0x54d6ff, 0.45);
-    const knob = this.add.circle(0, 0, 32, 0x54d6ff, 0.58).setStrokeStyle(2, 0xe8f6ff, 0.58);
+    const knob = this.add.circle(0, 0, 40, 0x54d6ff, 0.58).setStrokeStyle(2, 0xe8f6ff, 0.58);
     const text = this.add
       .text(0, 0, label, { fontSize: "13px", color: "#cfe8f5", fontStyle: "bold" })
       .setOrigin(0.5, 0.5);
