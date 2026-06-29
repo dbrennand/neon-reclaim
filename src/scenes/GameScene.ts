@@ -45,8 +45,6 @@ interface TouchStick {
   knob: Phaser.GameObjects.Arc;
   label: Phaser.GameObjects.Text;
   pointer?: Phaser.Input.Pointer;
-  pointerId?: number;
-  pointerIdentifier?: number;
   origin: Phaser.Math.Vector2;
   vector: Phaser.Math.Vector2;
 }
@@ -999,7 +997,7 @@ export class GameScene extends Phaser.Scene {
 
   private updateTouchControls(): void {
     [this.moveStick, this.aimStick].forEach((stick) => {
-      if (!stick || (!stick.pointer && stick.pointerId === undefined && stick.pointerIdentifier === undefined)) {
+      if (!stick?.pointer) {
         return;
       }
       const pointer = this.findStickPointer(stick);
@@ -1106,8 +1104,6 @@ export class GameScene extends Phaser.Scene {
 
   private releaseTouchStick(stick: TouchStick): void {
     stick.pointer = undefined;
-    stick.pointerId = undefined;
-    stick.pointerIdentifier = undefined;
     stick.vector.set(0, 0);
     this.updateTouchStickKnob(stick);
   }
@@ -1123,16 +1119,10 @@ export class GameScene extends Phaser.Scene {
 
   private assignTouchPointer(stick: TouchStick, pointer: Phaser.Input.Pointer): void {
     stick.pointer = pointer;
-    stick.pointerId = pointer.pointerId;
-    stick.pointerIdentifier = pointer.identifier;
   }
 
   private isStickPointer(stick: TouchStick, pointer: Phaser.Input.Pointer): boolean {
-    return (
-      stick.pointer === pointer ||
-      (stick.pointerId !== undefined && stick.pointerId === pointer.pointerId) ||
-      (stick.pointerIdentifier !== undefined && stick.pointerIdentifier === pointer.identifier)
-    );
+    return stick.pointer === pointer;
   }
 
   private registerTouchButtonPointer(pointer: Phaser.Input.Pointer): void {
@@ -1163,10 +1153,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private findStickPointer(stick: TouchStick): Phaser.Input.Pointer | undefined {
-    if (stick.pointer?.isDown) {
+    if (stick.pointer?.isDown && this.input.manager.pointers.includes(stick.pointer)) {
       return stick.pointer;
     }
-    return this.input.manager.pointers.find((pointer) => pointer.isDown && this.isStickPointer(stick, pointer));
+    return undefined;
   }
 
   private releaseAllTouchControls(): void {
